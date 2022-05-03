@@ -25,7 +25,7 @@ public:
 };
 
 
-class File {
+class File final {
 public:
     explicit File(int fd): fd_(fd) {}
     DEFAULT_COPY_SEMANTIC(File);
@@ -73,7 +73,7 @@ struct ElfEntry {
 std::vector<uint32_t> GetInstructions(const ElfEntry &elf_entry);
 
 
-class Elf {
+class Elf final {
 public:
     explicit Elf(const char *path);
     NO_COPY_SEMANTIC(Elf);
@@ -84,13 +84,7 @@ public:
 
     static bool IsElfMagicCorrect(const unsigned char (*e_ident)[16]);
 
-    static bool IsLoadableSegment(Elf32_Word p_type);
-
     bool IsMagicCorrect() const;
-
-    size_t GetProgramHeaderEntriesCount() const;
-
-    Elf32_Phdr *GetProgramHeaderEntry(size_t idx) const;
 
     ElfEntry GetElfEntry() const;
 
@@ -100,7 +94,7 @@ private:
 };
 
 
-void execute(const char *path);
+std::vector<uint32_t> execute(const char *path);
 }   // end namespace utils
 
 #endif // HW_CO_SIMULATION_LOAD_ELF_H

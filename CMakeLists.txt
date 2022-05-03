@@ -19,9 +19,11 @@ set(CMAKE_CXX_FLAGS_DEBUG "-g")
 set(CMAKE_CXX_FLAGS_RELEASE "-O3")
 
 
-add_executable(main main.cpp)
+add_executable(sim main.cpp)
+add_subdirectory(models/functional)
 add_subdirectory(utils)
 
-target_link_libraries(main PUBLIC
+target_link_libraries(sim PUBLIC
+        functional
         utils
         )

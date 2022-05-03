@@ -11,6 +11,6 @@ int loop(int res) {
 }
 
 int main() {
-    int res = loop(35);
+    int res = loop(10);
     return res;
 }

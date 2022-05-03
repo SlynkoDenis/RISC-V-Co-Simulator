@@ -1,42 +1,39 @@
 
-nested_loop.out:     file format elf32-littleriscv
+nested_loops.out:     file format elf32-littleriscv
 
 
 Disassembly of section .text:
 
-00010094 <main>:
-   10094:	fe700713          	li	a4,-25
-   10098:	02300513          	li	a0,35
-   1009c:	00000793          	li	a5,0
-   100a0:	01700613          	li	a2,23
-   100a4:	ed470693          	addi	a3,a4,-300
-   100a8:	00a78533          	add	a0,a5,a0
-   100ac:	00178793          	addi	a5,a5,1
-   100b0:	00a68533          	add	a0,a3,a0
-   100b4:	01970713          	addi	a4,a4,25
-   100b8:	fec796e3          	bne	a5,a2,100a4 <main+0x10>
-   100bc:	00008067          	ret
+00010094 <loop>:
+   10094:	00151793          	slli	a5,a0,0x1
+   10098:	00300813          	li	a6,3
+   1009c:	0307c833          	div	a6,a5,a6
+   100a0:	00a785b3          	add	a1,a5,a0
+   100a4:	41f5d613          	srai	a2,a1,0x1f
+   100a8:	00367613          	andi	a2,a2,3
+   100ac:	00b60633          	add	a2,a2,a1
+   100b0:	40265613          	srai	a2,a2,0x2
+   100b4:	00200713          	li	a4,2
+   100b8:	00000693          	li	a3,0
+   100bc:	00300893          	li	a7,3
+   100c0:	02f74063          	blt	a4,a5,100e0 <loop+0x4c>
+   100c4:	00008067          	ret
+   100c8:	40f68733          	sub	a4,a3,a5
+   100cc:	00e50533          	add	a0,a0,a4
+   100d0:	00178793          	addi	a5,a5,1
+   100d4:	fec7cae3          	blt	a5,a2,100c8 <loop+0x34>
+   100d8:	00168693          	addi	a3,a3,1
+   100dc:	0106d863          	bge	a3,a6,100ec <loop+0x58>
+   100e0:	00000793          	li	a5,0
+   100e4:	feb8c2e3          	blt	a7,a1,100c8 <loop+0x34>
+   100e8:	ff1ff06f          	j	100d8 <loop+0x44>
+   100ec:	00008067          	ret
 
-000100c0 <loop>:
-   100c0:	00151793          	slli	a5,a0,0x1
-   100c4:	00a78833          	add	a6,a5,a0
-   100c8:	41f85613          	srai	a2,a6,0x1f
-   100cc:	00367613          	andi	a2,a2,3
-   100d0:	01060633          	add	a2,a2,a6
-   100d4:	00300593          	li	a1,3
-   100d8:	00200713          	li	a4,2
-   100dc:	02b7c5b3          	div	a1,a5,a1
-   100e0:	40265613          	srai	a2,a2,0x2
-   100e4:	00000693          	li	a3,0
-   100e8:	00300893          	li	a7,3
-   100ec:	02f75463          	bge	a4,a5,10114 <loop+0x54>
-   100f0:	00000793          	li	a5,0
-   100f4:	0108da63          	bge	a7,a6,10108 <loop+0x48>
-   100f8:	40f68733          	sub	a4,a3,a5
-   100fc:	00178793          	addi	a5,a5,1
-   10100:	00e50533          	add	a0,a0,a4
-   10104:	fec7cae3          	blt	a5,a2,100f8 <loop+0x38>
-   10108:	00168693          	addi	a3,a3,1
-   1010c:	feb6c2e3          	blt	a3,a1,100f0 <loop+0x30>
-   10110:	00008067          	ret
-   10114:	00008067          	ret
+000100f0 <main>:
+   100f0:	ff010113          	addi	sp,sp,-16
+   100f4:	00112623          	sw	ra,12(sp)
+   100f8:	00a00513          	li	a0,10
+   100fc:	f99ff0ef          	jal	ra,10094 <loop>
+   10100:	00c12083          	lw	ra,12(sp)
+   10104:	01010113          	addi	sp,sp,16
+   10108:	00008067          	ret
