@@ -7,16 +7,6 @@
 
 
 namespace functional {
-enum class RV32IType : uint8_t {
-    RType,
-    IType,
-    SType,
-    BType,
-    UType,
-    JType,
-    UNKNOWN,
-};
-
 static constexpr std::array<const char*, 41> instructions_names = {
     "LUI",
     "AUIPC",
@@ -108,123 +98,144 @@ enum class RV32I : uint8_t {
 std::ostream &operator<<(std::ostream &os, RV32I instr);
 
 
-#define GETTER(name, low, high)     \
-    constexpr inline uint32_t Get##name() const { return GetRange(low, high); }
+union InstrLayout {
+    uint32_t raw;
+    struct {
+        uint32_t opcode  : 7;
+        uint32_t rd      : 5;
+        uint32_t funct3  : 3;
+        uint32_t rs1     : 5;
+        uint32_t rs2     : 5;
+        uint32_t funct7  : 7;
+    } __attribute__((packed)) r_type;
+    struct {
+        uint32_t opcode  : 7;
+        uint32_t rd      : 5;
+        uint32_t funct3  : 3;
+        uint32_t rs1     : 5;
+        uint32_t imm     : 12;
+    } __attribute__((packed)) i_type;
+    struct {
+        uint32_t opcode  : 7;
+        uint32_t imm0    : 5;
+        uint32_t funct3  : 3;
+        uint32_t rs1     : 5;
+        uint32_t rs2     : 5;
+        uint32_t imm1    : 7;
+    } __attribute__((packed)) s_type;
+    struct {
+        uint32_t opcode  : 7;
+        uint32_t imm2    : 1;
+        uint32_t imm0    : 4;
+        uint32_t funct3  : 3;
+        uint32_t rs1     : 5;
+        uint32_t rs2     : 5;
+        uint32_t imm1    : 6;
+        uint32_t imm3    : 1;
+    } __attribute__((packed)) b_type;
+    struct {
+        uint32_t opcode  : 7;
+        uint32_t rd      : 5;
+        uint32_t imm     : 20;
+    } __attribute__((packed)) u_type;
+    struct {
+        uint32_t opcode  : 7;
+        uint32_t rd      : 5;
+        uint32_t imm2    : 8;
+        uint32_t imm1    : 1;
+        uint32_t imm0    : 10;
+        uint32_t imm3    : 1;
+    } __attribute__((packed)) j_type;
+};
+
+#define GETTER(name, instr_type, struct_name)   \
+    constexpr inline uint32_t Get##name() const { return instr.instr_type.struct_name; }
 
 struct RV32IInstruction {
-    explicit RV32IInstruction(uint32_t raw_instr): raw(raw_instr) {}
+    explicit RV32IInstruction(uint32_t raw_instr): instr{.raw = raw_instr} {}
 
-    GETTER(Opcode, 0, 7);
+    GETTER(Opcode, r_type, opcode);
 
-    virtual void dump() const {
-        std::cout << std::hex << raw;
+    virtual void Dump() const {
+        std::cout << std::hex << instr.raw;
     }
 
-    uint32_t raw;
-
-protected:
-    constexpr inline uint32_t GetRange(size_t low, size_t high) const {
-        ASSERT(high <= 32 && low < high);
-        if (UNLIKELY(high - low == 32)) {   // prevent overflow
-            return raw;
-        }
-        return (raw >> low) & ((1u << (high - low)) - 1u);
-    }
+    InstrLayout instr;
 };
 
 struct RV32ITypeR : public RV32IInstruction {
     explicit RV32ITypeR(uint32_t raw_instr) : RV32IInstruction(raw_instr) {}
 
-    GETTER(Rd, 7, 12);
-    GETTER(Funct3, 12, 15);
-    GETTER(Rs1, 15, 20);
-    GETTER(Rs2, 20, 25);
-    GETTER(Funct7, 25, 32);
+    GETTER(Rd, r_type, rd);
+    GETTER(Funct3, r_type, funct3);
+    GETTER(Rs1, r_type, rs1);
+    GETTER(Rs2, r_type, rs2);
+    GETTER(Funct7, r_type, funct7);
 
-    void dump() const override;
+    void Dump() const override;
 };
 
 struct RV32ITypeI : public RV32IInstruction {
     explicit RV32ITypeI(uint32_t raw_instr) : RV32IInstruction(raw_instr) {}
 
-    GETTER(Rd, 7, 12);
-    GETTER(Funct3, 12, 15);
-    GETTER(Rs1, 15, 20);
+    GETTER(Rd, i_type, rd);
+    GETTER(Funct3, i_type, funct3);
+    GETTER(Rs1, i_type, rs1);
     constexpr inline uint32_t GetImm() const {
         union imm_layout {
-            uint32_t instr;
+            uint32_t raw_instr;
             struct {
-                uint32_t pad0 : 20;
-                uint32_t imm0 : 12;
-            } __attribute__((packed)) instr_i_type;
-            struct {
-                uint32_t imm0 : 12;
-                uint32_t se : 20;
+                uint32_t imm : 12;
+                uint32_t se  : 20;
             } __attribute__((packed)) imm_i_type;
-        } in{.instr = raw}, out{.instr = 0};
-        uint8_t sign = (in.instr >> 31) & 1;
+        } out{.raw_instr = 0};
 
-        out.imm_i_type.imm0 = in.instr_i_type.imm0;
-        if (sign) {
+        out.imm_i_type.imm = instr.i_type.imm;
+        if ((instr.raw >> 31) & 1) {
             out.imm_i_type.se--;
         }
-        return out.instr;
+        return out.raw_instr;
     }
 
-    void dump() const override;
+    void Dump() const override;
 };
 
 struct RV32ITypeS : public RV32IInstruction {
     explicit RV32ITypeS(uint32_t raw_instr) : RV32IInstruction(raw_instr) {}
 
-    GETTER(Funct3, 12, 15);
-    GETTER(Rs1, 15, 20);
-    GETTER(Rs2, 20, 25);
+    GETTER(Funct3, s_type, funct3);
+    GETTER(Rs1, s_type, rs1);
+    GETTER(Rs2, s_type, rs2);
     constexpr inline uint32_t GetImm() const {
         union imm_layout {
-            uint32_t instr;
-            struct {
-                uint32_t pad0 : 7;
-                uint32_t imm0 : 5;
-                uint32_t pad1 : 13;
-                uint32_t imm1 : 7;
-            } __attribute__((packed)) instr_s_type;
+            uint32_t raw_instr;
             struct {
                 uint32_t imm0 : 5;
                 uint32_t imm1 : 7;
                 uint32_t se : 20;
             } __attribute__((packed)) imm_s_type;
-        } in{.instr = raw}, out{.instr = 0};
-        uint8_t sign = (in.instr >> 31) & 1;
+        } out{.raw_instr = 0};
 
-        out.imm_s_type.imm0 = in.instr_s_type.imm0;
-        out.imm_s_type.imm1 = in.instr_s_type.imm1;
-        if (sign) {
+        out.imm_s_type.imm0 = instr.s_type.imm0;
+        out.imm_s_type.imm1 = instr.s_type.imm1;
+        if ((instr.raw >> 31) & 1) {
             out.imm_s_type.se--;
         }
-        return out.instr;
+        return out.raw_instr;
     }
 
-    void dump() const override;
+    void Dump() const override;
 };
 
 struct RV32ITypeB : public RV32IInstruction {
     explicit RV32ITypeB(uint32_t raw_instr) : RV32IInstruction(raw_instr) {}
 
-    GETTER(Funct3, 12, 15);
-    GETTER(Rs1, 15, 20);
-    GETTER(Rs2, 20, 25);
+    GETTER(Funct3, b_type, funct3);
+    GETTER(Rs1, b_type, rs1);
+    GETTER(Rs2, b_type, rs2);
     constexpr inline uint32_t GetImm() const {
         union imm_layout {
-            uint32_t instr;
-            struct {
-                uint32_t pad0 : 7;
-                uint32_t imm2 : 1;
-                uint32_t imm0 : 4;
-                uint32_t pad2 : 13;
-                uint32_t imm1 : 6;
-                uint32_t sign : 1;
-            } __attribute__((packed)) instr_b_type;
+            uint32_t raw_instr;
             struct {
                 uint32_t zero : 1;
                 uint32_t imm0 : 4;
@@ -232,47 +243,38 @@ struct RV32ITypeB : public RV32IInstruction {
                 uint32_t imm2 : 1;
                 uint32_t se : 20;
             } __attribute__((packed)) imm_b_type;
-        } in{.instr = raw}, out{.instr = 0};
-        uint8_t sign = in.instr_b_type.sign;
+        } out{.raw_instr = 0};
 
-        out.imm_b_type.imm0 = in.instr_b_type.imm0;
-        out.imm_b_type.imm1 = in.instr_b_type.imm1;
-        out.imm_b_type.imm2 = in.instr_b_type.imm2;
-        if (sign) {
+        out.imm_b_type.imm0 = instr.b_type.imm0;
+        out.imm_b_type.imm1 = instr.b_type.imm1;
+        out.imm_b_type.imm2 = instr.b_type.imm2;
+        if (instr.b_type.imm3) {
             out.imm_b_type.se--;
         }
-        return out.instr;
+        return out.raw_instr;
     }
 
-    void dump() const override;
+    void Dump() const override;
 };
 
 struct RV32ITypeU : public RV32IInstruction {
     explicit RV32ITypeU(uint32_t raw_instr) : RV32IInstruction(raw_instr) {}
 
-    GETTER(Rd, 7, 12);
-    GETTER(Imm, 12, 32);
-
-    void dump() const override;
+    GETTER(Rd, u_type, rd);
     constexpr inline uint32_t GetImm() const {
-        return raw & (-(1u << 12));
+        return instr.raw & (-(1u << 12));
     }
+
+    void Dump() const override;
 };
 
 struct RV32ITypeJ : public RV32IInstruction {
     explicit RV32ITypeJ(uint32_t raw_instr) : RV32IInstruction(raw_instr) {}
 
-    GETTER(Rd, 7, 12);
+    GETTER(Rd, j_type, rd);
     constexpr inline uint32_t GetImm() const {
         union imm_layout {
-            uint32_t instr;
-            struct {
-                uint32_t pad0 : 12;
-                uint32_t imm2 : 8;
-                uint32_t imm1 : 1;
-                uint32_t imm0 : 10;
-                uint32_t sign : 1;
-            } __attribute__((packed)) instr_j_type;
+            uint32_t raw_instr;
             struct {
                 uint32_t zero : 1;
                 uint32_t imm0 : 10;
@@ -280,19 +282,18 @@ struct RV32ITypeJ : public RV32IInstruction {
                 uint32_t imm2 : 8;
                 uint32_t se : 12;
             } __attribute__((packed)) imm_j_type;
-        } in{.instr = raw}, out{.instr = 0};
-        uint8_t sign = in.instr_j_type.sign;
+        } out{.raw_instr = 0};
 
-        out.imm_j_type.imm0 = in.instr_j_type.imm0;
-        out.imm_j_type.imm1 = in.instr_j_type.imm1;
-        out.imm_j_type.imm2 = in.instr_j_type.imm2;
-        if (sign) {
+        out.imm_j_type.imm0 = instr.j_type.imm0;
+        out.imm_j_type.imm1 = instr.j_type.imm1;
+        out.imm_j_type.imm2 = instr.j_type.imm2;
+        if (instr.j_type.imm3) {
             out.imm_j_type.se--;
         }
-        return out.instr;
+        return out.raw_instr;
     }
 
-    void dump() const override;
+    void Dump() const override;
 };
 
 #undef GETTER

@@ -1,23 +1,40 @@
+#include "load_elf.h"
 #include "model.h"
 
 
 namespace functional {
-void FunctionalModel::Run() {
+void FunctionalModel::InitSP() {
+    auto sp = mmu.AllocateStack();
+    registers.WriteReg(sp, SPReg);
+}
+
+
+void FunctionalModel::DumpState() {
+    std::cout << "===================== Dump Model State =====================\n";
+    registers.Dump();
+    std::cout << "============================================================\n";
+}
+
+
+runtime::ReturnCodes FunctionalModel::Run() {
     try {
         while (true) {
             ++ticks_counter;
-            std::cout << "Executing instruction #" << std::dec << ticks_counter << " (pc " << pc << ")\n";
+            std::cout << "Executing instruction #" << std::dec << ticks_counter << " (pc " << std::hex << pc << ")\n";
 
             // TODO: make debugger mode
-// #if 0
+#if 0
             char c = 0;
             while (c != 'c') {
                 std::cin >> c;
                 if (c == 'p') {
                     DEBUG_OBJ_DUMP(registers);
                 }
+                if (c == 'k') {
+                    std::exit(0);
+                }
             }
-// #endif
+#endif
 
             auto raw_instr = LoadFromPC();
             auto decoded_instr = Decode(raw_instr);
@@ -30,14 +47,41 @@ void FunctionalModel::Run() {
                 pc += 4;
             }
         }
+    } catch (memory::AccessViolationException const&) {
+        DumpState();
+        return runtime::SEGFAULT_ERROR;
     } catch (ECALLException const&) {
-        return;
+        DumpState();
+        return runtime::ECALL;
     } catch (EBREAKException const&) {
-        return;
-    }//  catch (...) {
+        DumpState();
+        return runtime::EBREAK;
+    }
+    //  catch (...) {
+    //     DumpState();    
     //     throw;
     // }
     // TODO: uncomment, print dump and terminate
+    DumpState();
+    return runtime::ERROR_NONE;
+}
+
+
+runtime::ReturnCodes FunctionalModel::RunProgram(const char *path) {
+    uint32_t entrypoint = 0;
+    try {
+        utils::Elf32Loader program_loader(path);
+        entrypoint = program_loader.LoadElf32IntoMemory(mmu);
+    } catch (utils::FileOpenException const &) {
+        return runtime::FILE_OPEN_ERROR;
+    } catch (utils::ElfLoadException const &) {
+        return runtime::ELF_LOAD_ERROR;
+    } catch (memory::AllocationException const &) {
+        return runtime::MMU_ALLOC_ERROR;
+    }
+    SetPC(entrypoint);
+    InitSP();
+    return Run();
 }
 
 
@@ -65,9 +109,8 @@ bool FunctionalModel::HandleJAL(RV32IInstruction &instr) {
 bool FunctionalModel::HandleJALR(RV32IInstruction &instr) {
     auto &i_instr = dynamic_cast<RV32ITypeI&>(instr);
     // TODO: raise machine exception if needed
-    // TODO: is rs1 signed?
     registers.WriteReg(pc + 4, i_instr.GetRd());
-    pc = (i_instr.GetRs1() + i_instr.GetImm()) & (0u - 2u);
+    pc = (static_cast<int32_t>(registers.ReadReg(i_instr.GetRs1())) + static_cast<int32_t>(i_instr.GetImm())) & (0u - 2u);
     return false;
 }
 
@@ -116,64 +159,64 @@ bool FunctionalModel::HandleBGEU(RV32IInstruction &instr) {
 bool FunctionalModel::HandleLB(RV32IInstruction &instr) {
     auto &i_instr = dynamic_cast<RV32ITypeI&>(instr);
     // TODO: is rs1 signed?
-    auto addr = i_instr.GetRs1() + i_instr.GetImm();
-    registers.WriteReg(static_cast<int32_t>(memory.GetByte(addr)), i_instr.GetRd());
+    auto addr = registers.ReadReg(i_instr.GetRs1()) + i_instr.GetImm();
+    registers.WriteReg(static_cast<int32_t>(mmu.GetByte(addr)), i_instr.GetRd());
     return true;
 }
 
 bool FunctionalModel::HandleLH(RV32IInstruction &instr) {
     auto &i_instr = dynamic_cast<RV32ITypeI&>(instr);
     // TODO: is rs1 signed?
-    auto addr = i_instr.GetRs1() + i_instr.GetImm();
-    registers.WriteReg(static_cast<int32_t>(memory.GetHalf(addr)), i_instr.GetRd());
+    auto addr = registers.ReadReg(i_instr.GetRs1()) + i_instr.GetImm();
+    registers.WriteReg(static_cast<int32_t>(mmu.GetHalf(addr)), i_instr.GetRd());
     return true;
 }
 
 bool FunctionalModel::HandleLW(RV32IInstruction &instr) {
     auto &i_instr = dynamic_cast<RV32ITypeI&>(instr);
     // TODO: is rs1 signed?
-    auto addr = i_instr.GetRs1() + i_instr.GetImm();
-    registers.WriteReg(memory.GetWord(addr), i_instr.GetRd());
+    auto addr = registers.ReadReg(i_instr.GetRs1()) + i_instr.GetImm();
+    registers.WriteReg(mmu.GetWord(addr), i_instr.GetRd());
     return true;
 }
 
 bool FunctionalModel::HandleLBU(RV32IInstruction &instr) {
     auto &i_instr = dynamic_cast<RV32ITypeI&>(instr);
     // TODO: is rs1 signed?
-    auto addr = i_instr.GetRs1() + i_instr.GetImm();
-    registers.WriteReg(static_cast<uint32_t>(memory.GetByte(addr)), i_instr.GetRd());
+    auto addr = registers.ReadReg(i_instr.GetRs1()) + i_instr.GetImm();
+    registers.WriteReg(static_cast<uint32_t>(mmu.GetByte(addr)), i_instr.GetRd());
     return true;
 }
 
 bool FunctionalModel::HandleLHU(RV32IInstruction &instr) {
     auto &i_instr = dynamic_cast<RV32ITypeI&>(instr);
     // TODO: is rs1 signed?
-    auto addr = i_instr.GetRs1() + i_instr.GetImm();
-    registers.WriteReg(static_cast<uint32_t>(memory.GetHalf(addr)), i_instr.GetRd());
+    auto addr = registers.ReadReg(i_instr.GetRs1()) + i_instr.GetImm();
+    registers.WriteReg(static_cast<uint32_t>(mmu.GetHalf(addr)), i_instr.GetRd());
     return true;
 }
 
 bool FunctionalModel::HandleSB(RV32IInstruction &instr) {
     auto &s_instr = dynamic_cast<RV32ITypeS&>(instr);
     // TODO: is rs1 signed?
-    auto addr = s_instr.GetRs1() + s_instr.GetImm();
-    memory.SetByte(static_cast<uint8_t>(s_instr.GetRs2()), addr);
+    auto addr = registers.ReadReg(s_instr.GetRs1()) + s_instr.GetImm();
+    mmu.SetByte(static_cast<uint8_t>(registers.ReadReg(s_instr.GetRs2())), addr);
     return true;
 }
 
 bool FunctionalModel::HandleSH(RV32IInstruction &instr) {
     auto &s_instr = dynamic_cast<RV32ITypeS&>(instr);
     // TODO: is rs1 signed?
-    auto addr = s_instr.GetRs1() + s_instr.GetImm();
-    memory.SetByte(static_cast<uint16_t>(s_instr.GetRs2()), addr);
+    auto addr = registers.ReadReg(s_instr.GetRs1()) + s_instr.GetImm();
+    mmu.SetByte(static_cast<uint16_t>(registers.ReadReg(s_instr.GetRs2())), addr);
     return true;
 }
 
 bool FunctionalModel::HandleSW(RV32IInstruction &instr) {
     auto &s_instr = dynamic_cast<RV32ITypeS&>(instr);
     // TODO: is rs1 signed?
-    auto addr = s_instr.GetRs1() + s_instr.GetImm();
-    memory.SetWord(s_instr.GetRs2(), addr);
+    auto addr = registers.ReadReg(s_instr.GetRs1()) + s_instr.GetImm();
+    mmu.SetWord(registers.ReadReg(s_instr.GetRs2()), addr);
     return true;
 }
 

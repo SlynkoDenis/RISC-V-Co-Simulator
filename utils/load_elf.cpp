@@ -1,119 +1,80 @@
 #include <cstring>
 #include <sys/mman.h>
+#include <unistd.h>
 #include "load_elf.h"
 
 
 namespace utils {
-Elf::Elf(const char *path) {
-    auto file = File{open(path, O_RDONLY)};
-    if (!file.IsValid()) {
-        throw FileOpenException("failed to open file " + std::string(path));
-    }
-
-    sz = file.GetFileSize();
-    mapped_elf = mmap(NULL, sz, PROT_READ, MAP_PRIVATE, file.GetFd(), 0);
-    if (mapped_elf == MAP_FAILED) {
-        throw ElfLoadException("failed mmap");
-    }
-    if (file.Close()) {
-        throw FileOpenException("failed to close file " + std::string(path));
-    }
-}
-
-Elf::~Elf() noexcept {
-    int r = munmap(mapped_elf, sz);
-    if (r != 0) {
-        WARNING("failed nunmap");
-    }
-}
-
-const Elf32_Ehdr *Elf::GetElfHeader() const {
-    return reinterpret_cast<Elf32_Ehdr *>(mapped_elf);
-}
-
-bool Elf::IsElfMagicCorrect(const unsigned char (*e_ident)[16]) {
-    int cmp = memcmp(e_ident,
+bool Elf32Loader::ValidateElfHeader(const Elf32_Ehdr &elf_header) {
+    int cmp = memcmp(&elf_header.e_ident,
                      "\x7f"
                      "ELF",
                      4);
-    return (cmp == 0);
+    return (cmp == 0)
+           && (elf_header.e_type == ET_EXEC)
+           && (elf_header.e_machine == EM_RISCV);
 }
 
-bool Elf::IsMagicCorrect() const {
-    const auto *elf_header = GetElfHeader();
-    return IsElfMagicCorrect(&elf_header->e_ident);
-}
 
-ElfEntry Elf::GetElfEntry() const {
-    if (!IsMagicCorrect()) {
-        throw ElfLoadException("invalid elf magic");
+const Elf32_Ehdr &Elf32Loader::ReadElfHeader() {
+    if (!header_was_init) {
+        if (pread(fd_, &elf_header, sizeof(elf_header), 0) != sizeof(elf_header)) {
+            throw ElfLoadException("failed to read ELF header");
+        }
+        if (!ValidateElfHeader()) {
+            throw ElfLoadException("invalid ELF header");
+        }
+        header_was_init = true;
     }
+    return elf_header;
+}
 
-    const auto *elf_header = GetElfHeader();
 
-    auto entry_va = elf_header->e_entry;
+const std::vector<Elf32_Phdr> &Elf32Loader::ReadProgramHeaderTable() {
+    if (!table_was_init) {
+        ph_table.resize(elf_header.e_phnum);
+        long int table_bytes_size = sizeof(Elf32_Phdr) * elf_header.e_phnum;
+        if (pread(fd_, ph_table.data(), table_bytes_size, elf_header.e_phoff) != table_bytes_size) {
+            throw ElfLoadException("failed to load Program Header Table");
+        }
+        table_was_init = true;
+    }
+    return ph_table;
+}
 
-    std::cout << "@@@@@ entry_va == " << std::dec << entry_va << std::endl;
-    std::cout << "@@@@@ sz == " << std::dec << sz << std::endl;
 
-    auto ph_off = elf_header->e_phoff;
-    auto ph_num = elf_header->e_phnum;
-    auto ph_ent_size = elf_header->e_phentsize;
-
-    Elf32_Phdr *to_load = nullptr;
-    for (int i = 0; i < ph_num; ++i) {
-        auto *ph = reinterpret_cast<Elf32_Phdr*>(reinterpret_cast<uint8_t*>(mapped_elf) + ph_off + ph_ent_size * i);
-        std::cout << "@@@@@ ph->p_vaddr == " << std::dec << ph->p_vaddr << std::endl;
-        if (ph->p_type != PT_LOAD) {
+uint32_t Elf32Loader::LoadElf32IntoMemory(memory::MMU<uint32_t, uint8_t, uint8_t> &mmu) {
+    ReadElfHeader();
+    ReadProgramHeaderTable();
+    for (const auto &p_header : ph_table) {
+        if (p_header.p_type != PT_LOAD && p_header.p_memsz == 0) {   // must be loadable
             continue;
         }
-        if (ph->p_vaddr <= entry_va && ph->p_vaddr + ph->p_memsz > entry_va) {
-            to_load = ph;
-            break;
+
+        int prot = PROT_NONE;
+        if (p_header.p_flags & PF_R) {
+            prot |= PROT_READ;
+        }
+        if (p_header.p_flags & PF_W) {
+            prot |= PROT_WRITE;
+        }
+        if (p_header.p_flags & PF_X) {
+            prot |= PROT_EXEC;
+        }
+
+        auto vaddr = p_header.p_vaddr;
+        auto mem_size = p_header.p_memsz;
+        auto file_size = p_header.p_filesz;
+        auto *paddr = mmu.AllocateMemory(vaddr, mmu.AlignUp(mem_size), prot);
+
+        if (pread(fd_, paddr, file_size, p_header.p_offset) != file_size) {
+            WARNING("failed to copy segment into memory");
+            throw ElfLoadException("failed to copy segment into memory");
+        }
+        if (mem_size > file_size) {
+            mmu.Memset(vaddr + file_size, 0, mem_size - file_size);
         }
     }
-    if (!to_load) {
-        throw ElfLoadException("failed to load");
-    }
-
-    ElfEntry elf_entry{reinterpret_cast<uint8_t*>(mapped_elf) + to_load->p_offset,
-                       to_load->p_filesz,
-                       entry_va - to_load->p_vaddr};
-    return elf_entry;
-}
-
-std::vector<uint32_t> GetInstructions(const ElfEntry &elf_entry) {
-    ASSERT(elf_entry.ptr != nullptr);
-
-    int sz_in_bytes = elf_entry.sz - elf_entry.entry;
-    // check alignment
-    ASSERT(sz_in_bytes > 0);
-    ASSERT(sz_in_bytes % sizeof(uint32_t) == 0);
-    unsigned instrs_count = sz_in_bytes / sizeof(uint32_t);
-
-    std::vector<uint32_t> instructions(instrs_count);
-    auto *entry_va = reinterpret_cast<uint32_t*>(elf_entry.ptr) + elf_entry.entry / 4;
-    for (size_t i = 0; i < instrs_count; ++i) {
-        instructions[i] = *(entry_va + i);
-    }
-
-    return instructions;
-}
-
-// TODO: remove this function, now it exists only for tests
-std::vector<uint32_t> execute(const char *path) {
-    std::cout << "**************** execute elf\n";
-
-    auto elf = Elf(path);
-    auto elf_entry = elf.GetElfEntry();
-
-    auto instructions = GetInstructions(elf_entry);
-    std::cout << "Got " << instructions.size() << " instructions:" << std::endl;
-    for (const auto &inst : instructions) {
-        std::cout << std::hex << inst << std::endl;
-    }
-
-    std::cout << "****************\n";
-    return instructions;
+    return elf_header.e_entry;
 }
 }   // end namespace utils

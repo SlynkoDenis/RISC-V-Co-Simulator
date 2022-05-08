@@ -10,7 +10,7 @@ struct RV32IDecodeResult {
     RV32IInstruction *instr;
     RV32I name;
 
-    void dump() const {
+    void Dump() const {
         std::cout << name << ' ';
         DEBUG_POINTER_DUMP(instr);
     }

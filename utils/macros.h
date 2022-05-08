@@ -16,8 +16,8 @@
         ASSERT_FAIL(#expr);     \
     }
 
-#define DEBUG_OBJ_DUMP(obj) obj.dump()
-#define DEBUG_POINTER_DUMP(obj) obj->dump()
+#define DEBUG_OBJ_DUMP(obj) obj.Dump()
+#define DEBUG_POINTER_DUMP(obj) obj->Dump()
 
 #else
 
@@ -28,7 +28,7 @@
 
 #endif
 
-#define WARNING(mess) utils::PrintWarning(#mess, __FILE__, __LINE__, __FUNCTION__)
+#define WARNING(mess) utils::PrintWarning((mess), __FILE__, __LINE__, __FUNCTION__)
 
 
 #define DEFAULT_DTOR(TypeName) \
