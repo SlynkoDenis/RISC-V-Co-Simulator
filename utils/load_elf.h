@@ -3,11 +3,12 @@
 
 #include <elf.h>
 #include <fcntl.h>
+#include "macros.h"
+#include "mmu.h"
 #include <stdexcept>
 #include <sys/stat.h>
 #include <unistd.h>
 #include <vector>
-#include "macros.h"
 
 
 namespace utils {
@@ -25,12 +26,12 @@ public:
 };
 
 
-class File final {
+class File {
 public:
     explicit File(int fd): fd_(fd) {}
     DEFAULT_COPY_SEMANTIC(File);
     DEFAULT_MOVE_SEMANTIC(File);
-    DEFAULT_DTOR(File);
+    virtual ~File() noexcept = default;
 
     int Close() const {
         return close(fd_);
@@ -53,48 +54,46 @@ public:
         return fd_;
     }
 
-private:
+protected:
     int fd_;
 };
 
-
-struct ElfEntry {
-    ElfEntry(): ptr(nullptr), sz(0), entry(0) {}
-    ElfEntry(void *ptr_n, size_t sz_n, size_t entry_n): ptr(ptr_n), sz(sz_n), entry(entry_n) {}
-    DEFAULT_COPY_SEMANTIC(ElfEntry);
-    DEFAULT_MOVE_SEMANTIC(ElfEntry);
-    DEFAULT_DTOR(ElfEntry);
-
-	void *ptr;
-	size_t sz;      // size in bytes
-	size_t entry;   // entry point offset in bytes
-};
-
-std::vector<uint32_t> GetInstructions(const ElfEntry &elf_entry);
-
-
-class Elf final {
+class Elf32Loader : protected File {
 public:
-    explicit Elf(const char *path);
-    NO_COPY_SEMANTIC(Elf);
-    DEFAULT_MOVE_SEMANTIC(Elf);
-    ~Elf() noexcept;
+    explicit Elf32Loader(const File &file): File(file), elf_header{},
+                                            header_was_init(false),
+                                            table_was_init(false) {
+        if (!IsValid()) {
+            throw FileOpenException("invalid file");
+        }
+    }
+    explicit Elf32Loader(const char *path): File(open(path, O_RDONLY)), elf_header{},
+                                            header_was_init(false),
+                                            table_was_init(false) {
+        if (!IsValid()) {
+            throw FileOpenException("failed to open");
+        }
+    }
+    NO_COPY_SEMANTIC(Elf32Loader);
+    DEFAULT_MOVE_SEMANTIC(Elf32Loader);
+    ~Elf32Loader() noexcept override {
+        Close();
+    };
 
-    const Elf32_Ehdr *GetElfHeader() const;
-
-    static bool IsElfMagicCorrect(const unsigned char (*e_ident)[16]);
-
-    bool IsMagicCorrect() const;
-
-    ElfEntry GetElfEntry() const;
+    static bool ValidateElfHeader(const Elf32_Ehdr &elf_header);
+    bool ValidateElfHeader() const {
+        return ValidateElfHeader(elf_header);
+    }
+    const Elf32_Ehdr &ReadElfHeader();
+    const std::vector<Elf32_Phdr> &ReadProgramHeaderTable();
+    uint32_t LoadElf32IntoMemory(memory::MMU<uint32_t, uint8_t, uint8_t> &mmu);
 
 private:
-    void *mapped_elf;
-    size_t sz;
+    Elf32_Ehdr elf_header;
+    bool header_was_init;
+    std::vector<Elf32_Phdr> ph_table;
+    bool table_was_init;
 };
-
-
-std::vector<uint32_t> execute(const char *path);
 }   // end namespace utils
 
 #endif // HW_CO_SIMULATION_LOAD_ELF_H

@@ -11,6 +11,6 @@ int loop(int res) {
 }
 
 int main() {
-    int res = loop(10);
+    int res = loop(10); // must return -11
     return res;
 }

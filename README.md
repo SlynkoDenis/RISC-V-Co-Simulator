@@ -7,10 +7,10 @@ TBD
 To compile a `C` source code for compatibility with `Co-Simulator` execute
 
 ```
-riscv32-unknown-linux-gnu-gcc -ffreestanding -march=rv32im -mabi=ilp32 -O2 -fpic -fpie -nostartfiles -nolibc -static $SOURCE_FILES
+riscv32-unknown-elf-gcc -ffreestanding -fno-asynchronous-unwind-tables -O2 -fpic -fpie -static $SOURCE_FILES -o $BINARY_FILE
 ```
 
 To disassemble a binary file execute
 ```
-riscv32-unknown-linux-gnu-objdump -d $BINARY_FILE
+riscv32-unknown-elf-objdump -D $BINARY_FILE > $DISASM_FILE
 ```

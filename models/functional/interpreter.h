@@ -3,6 +3,7 @@
 
 #include "decoder.h"
 #include "macros.h"
+#include "runtime.h"
 
 
 namespace functional {
@@ -13,12 +14,14 @@ namespace functional {
     case RV32I::name:           \
         return Handle##name(instr)
 
-class RV32IInterpreter {
+class RV32IInterpreter : runtime::Runtime {
 public:
     RV32IInterpreter() = default;
     DEFAULT_COPY_SEMANTIC(RV32IInterpreter);
     DEFAULT_MOVE_SEMANTIC(RV32IInterpreter);
     virtual ~RV32IInterpreter() noexcept = default;
+
+    virtual runtime::ReturnCodes RunProgram(const char *path) = 0;
 
 protected:
     bool Handle(RV32IInstruction &instr, RV32I name) {

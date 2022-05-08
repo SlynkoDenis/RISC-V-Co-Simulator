@@ -4,7 +4,9 @@
 #include "decoder.h"
 #include "interpreter.h"
 #include <memory>
-#include "memory.h"
+#include "mmu.h"
+#include "mmu_fixed_offset.h"
+#include "regfile.h"
 
 
 namespace functional {
@@ -25,15 +27,19 @@ public:
     DEFAULT_MOVE_SEMANTIC(FunctionalModel);
     ~FunctionalModel() noexcept override = default;
 
-    void LoadIntoMemory(const std::vector<uint32_t>& data, uint32_t start_addr) {
-        memory.SetRange(data, start_addr);
-    }
-
     void SetPC(uint32_t new_pc) {
         pc = new_pc;
     }
 
-    void Run();
+    void InitSP();
+
+    void DumpState();
+
+    runtime::ReturnCodes Run();
+
+    runtime::ReturnCodes RunProgram(const char *path) override;
+
+    static constexpr uint8_t SPReg = 2;
 
 protected:
     HANDLER(LUI);
@@ -79,11 +85,12 @@ protected:
 
 private:
     uint32_t LoadFromPC() const {
-        return memory.GetWord(pc);
+        ASSERT(pc % 4 == 0);
+        return mmu.GetWord(pc);
     }
 
     size_t ticks_counter;
-    MemoryUnit memory;
+    memory::MMUFixedOffset mmu;
     RegFile registers;
     uint32_t pc;
     std::unique_ptr<RV32IInstruction> cur_instr;

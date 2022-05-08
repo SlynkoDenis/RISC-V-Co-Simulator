@@ -20,6 +20,7 @@ set(CMAKE_CXX_FLAGS_RELEASE "-O3")
 
 
 add_executable(sim main.cpp)
+include_directories(models/shared)
 add_subdirectory(models/functional)
 add_subdirectory(utils)
 
