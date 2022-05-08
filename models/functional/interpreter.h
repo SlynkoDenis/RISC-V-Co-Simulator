@@ -21,6 +21,8 @@ public:
     DEFAULT_MOVE_SEMANTIC(RV32IInterpreter);
     virtual ~RV32IInterpreter() noexcept = default;
 
+    virtual void DumpState() const = 0;
+
     virtual runtime::ReturnCodes RunProgram(const char *path) = 0;
 
 protected:

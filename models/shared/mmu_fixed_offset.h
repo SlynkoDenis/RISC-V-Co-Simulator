@@ -116,7 +116,7 @@ protected:
         return memory_ + vaddr;
     }
 
-    inline void CheckPageAlignment(uint32_t val) {
+    inline void CheckPageAlignment([[maybe_unused]] uint32_t val) {
         ASSERT(val % PageSize == 0);
     }
 

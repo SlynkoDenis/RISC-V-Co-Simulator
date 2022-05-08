@@ -3,6 +3,26 @@ project(HW_CO_SIMULATION)
 
 set(CMAKE_CXX_STANDARD 17)
 
+function(add_git_submodule dir)
+    # add a Git submodule directory to CMake, assuming the
+    # Git submodule directory is a CMake project.
+    #
+    # Usage: in CMakeLists.txt
+    #
+    # include(AddGitSubmodule.cmake)
+    # add_git_submodule(mysubmod_dir)
+
+    find_package(Git REQUIRED)
+
+    if(NOT EXISTS ${dir}/CMakeLists.txt)
+        execute_process(COMMAND ${GIT_EXECUTABLE} submodule update --init --recursive -- ${dir}
+                WORKING_DIRECTORY ${PROJECT_SOURCE_DIR})
+    endif()
+
+    add_subdirectory(${dir})
+
+endfunction(add_git_submodule)
+
 
 if(NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE Debug)
@@ -23,6 +43,15 @@ add_executable(sim main.cpp)
 include_directories(models/shared)
 add_subdirectory(models/functional)
 add_subdirectory(utils)
+
+if(NOT WITH_TESTS)
+    set(WITH_TESTS False)
+endif()
+string(TOLOWER ${WITH_TESTS} LOWER_WITH_TESTS)
+if(${LOWER_WITH_TESTS} MATCHES "true")
+    add_git_submodule(third_party/googletest)
+    add_subdirectory(tests)
+endif()
 
 target_link_libraries(sim PUBLIC
         functional

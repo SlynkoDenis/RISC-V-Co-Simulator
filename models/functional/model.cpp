@@ -3,13 +3,7 @@
 
 
 namespace functional {
-void FunctionalModel::InitSP() {
-    auto sp = mmu.AllocateStack();
-    registers.WriteReg(sp, SPReg);
-}
-
-
-void FunctionalModel::DumpState() {
+void FunctionalModel::DumpState() const {
     std::cout << "===================== Dump Model State =====================\n";
     registers.Dump();
     std::cout << "============================================================\n";
@@ -20,10 +14,10 @@ runtime::ReturnCodes FunctionalModel::Run() {
     try {
         while (true) {
             ++ticks_counter;
-            std::cout << "Executing instruction #" << std::dec << ticks_counter << " (pc " << std::hex << pc << ")\n";
 
             // TODO: make debugger mode
 #if 0
+            std::cout << "Executing instruction #" << std::dec << ticks_counter << " (pc " << std::hex << pc << ")\n";
             char c = 0;
             while (c != 'c') {
                 std::cin >> c;

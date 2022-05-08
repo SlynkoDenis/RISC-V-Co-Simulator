@@ -30,14 +30,22 @@ public:
     void SetPC(uint32_t new_pc) {
         pc = new_pc;
     }
+    void InitSP() {
+        auto sp = mmu.AllocateStack();
+        registers.WriteReg(sp, SPReg);
+    }
 
-    void InitSP();
-
-    void DumpState();
+    void DumpState() const override;
 
     runtime::ReturnCodes Run();
-
     runtime::ReturnCodes RunProgram(const char *path) override;
+
+    const memory::MMUFixedOffset &GetMMU() const {
+        return mmu;
+    }
+    const RegFile &GetRegFile() const {
+        return registers;
+    }
 
     static constexpr uint8_t SPReg = 2;
 
