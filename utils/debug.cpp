@@ -11,3 +11,11 @@ void utils::PrintWarning(const char *mess, const char *file, unsigned line, cons
     std::cerr << "WARNING: " << mess << std::endl;
     std::cerr << "IN " << file << ":" << std::dec << line << ":" << function << std::endl;
 }
+
+void utils::AssertionFail(std::string expr, const char *file, unsigned line, const char *function) {
+    AssertionFail(expr.data(), file, line, function);
+}
+
+void utils::PrintWarning(std::string mess, const char *file, unsigned line, const char *function) {
+    PrintWarning(mess.data(), file, line, function);
+}

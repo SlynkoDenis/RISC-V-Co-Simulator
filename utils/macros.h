@@ -4,8 +4,6 @@
 #include "debug.h"
 
 
-// TODO: resolve
-// #define LIKELY(expr) (__builtin_expect((expr) != 0, true))
 #define UNLIKELY(expr) (__builtin_expect((expr) != 0, false))
 
 #ifdef DEBUG
@@ -29,6 +27,7 @@
 #endif
 
 #define WARNING(mess) utils::PrintWarning((mess), __FILE__, __LINE__, __FUNCTION__)
+#define UNREACHABLE(mess) utils::AssertionFail(mess, __FILE__, __LINE__, __FUNCTION__)
 
 
 #define DEFAULT_DTOR(TypeName) \

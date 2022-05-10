@@ -43,7 +43,7 @@ const std::vector<Elf32_Phdr> &Elf32Loader::ReadProgramHeaderTable() {
 }
 
 
-uint32_t Elf32Loader::LoadElf32IntoMemory(memory::MMU<uint32_t, uint8_t, uint8_t> &mmu) {
+uint32_t Elf32Loader::LoadElf32IntoMemory(memory::MMU<uint32_t, uint8_t> &mmu) {
     ReadElfHeader();
     ReadProgramHeaderTable();
     for (const auto &p_header : ph_table) {
@@ -65,7 +65,7 @@ uint32_t Elf32Loader::LoadElf32IntoMemory(memory::MMU<uint32_t, uint8_t, uint8_t
         auto vaddr = p_header.p_vaddr;
         auto mem_size = p_header.p_memsz;
         auto file_size = p_header.p_filesz;
-        auto *paddr = mmu.AllocateMemory(vaddr, mmu.AlignUp(mem_size), prot);
+        auto *paddr = mmu.AllocateMemory(vaddr, mem_size, prot);
 
         if (pread(fd_, paddr, file_size, p_header.p_offset) != file_size) {
             WARNING("failed to copy segment into memory");

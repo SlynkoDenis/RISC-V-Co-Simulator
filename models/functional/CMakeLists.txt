@@ -1,6 +1,5 @@
 set(SOURCES
     decoder.cpp
-    instruction.cpp
     model.cpp
     )
 
@@ -10,7 +9,6 @@ target_sources(functional PUBLIC
         decoder.h
         instruction.h
         interpreter.h
-        regfile.h
         model.h
         )
 

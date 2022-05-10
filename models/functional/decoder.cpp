@@ -91,7 +91,7 @@ RV32IDecodeResult Decode(uint32_t raw_instr) {
         case 0b111:
             return {res, RV32I::ANDI};
         case 0b001:
-            // TODO: here and below we can check imm[11:5]/funct7 equals 0100000/0000000
+            // TODO: here and below should verify that imm[11:5]/funct7 equals 0100000/0000000
             return {res, RV32I::SLLI};
         case 0b101: {
             auto type = raw_instr & (1 << 30) ? RV32I::SRAI : RV32I::SRLI;

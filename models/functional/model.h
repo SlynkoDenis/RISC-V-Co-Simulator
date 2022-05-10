@@ -43,7 +43,7 @@ public:
     const memory::MMUFixedOffset &GetMMU() const {
         return mmu;
     }
-    const RegFile &GetRegFile() const {
+    const RV32IRegFile &GetRegFile() const {
         return registers;
     }
 
@@ -99,7 +99,7 @@ private:
 
     size_t ticks_counter;
     memory::MMUFixedOffset mmu;
-    RegFile registers;
+    RV32IRegFile registers;
     uint32_t pc;
     std::unique_ptr<RV32IInstruction> cur_instr;
 };

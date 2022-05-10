@@ -11,8 +11,12 @@ struct RV32IDecodeResult {
     RV32I name;
 
     void Dump() const {
-        std::cout << name << ' ';
-        DEBUG_POINTER_DUMP(instr);
+        DumpImpl(std::cout);
+    }
+
+    void DumpImpl(std::ostream &os) const {
+        os << name << ' ';
+        instr->DumpImpl(os);
     }
 };
 

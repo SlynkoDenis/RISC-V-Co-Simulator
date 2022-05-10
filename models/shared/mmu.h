@@ -24,7 +24,7 @@ public:
 };
 
 
-template <typename VAType, typename PAType, typename PIDType>
+template <typename VAType, typename PAType>
 class MMU {
 public:
     MMU() = default;
@@ -36,9 +36,10 @@ public:
     virtual VAType AlignUp(VAType vaddr) const = 0;
     virtual VAType AlignDown(VAType vaddr) const = 0;
     virtual void *Memset(VAType vaddr, int fill_byte, size_t n_bytes) = 0;
+    virtual void FreeMemory() = 0;
 
 protected:
-    virtual PAType *Translate(PIDType pid, VAType vaddr) const = 0;
+    virtual PAType *Translate(VAType vaddr) const = 0;
 };
 }   // end namespace memory
 

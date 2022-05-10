@@ -95,7 +95,10 @@ enum class RV32I : uint8_t {
     UNKNOWN,
 };
 
-std::ostream &operator<<(std::ostream &os, RV32I instr);
+inline std::ostream &operator<<(std::ostream &os, RV32I instr) {
+    os << instructions_names[static_cast<size_t>(instr)];
+    return os;
+}
 
 
 union InstrLayout {
@@ -156,8 +159,9 @@ struct RV32IInstruction {
 
     GETTER(Opcode, r_type, opcode);
 
-    virtual void Dump() const {
-        std::cout << std::hex << instr.raw;
+    virtual void Dump() const { DumpImpl(std::cout); }
+    virtual void DumpImpl(std::ostream &os) const {
+        os << std::hex << instr.raw;
     }
 
     InstrLayout instr;
@@ -172,7 +176,10 @@ struct RV32ITypeR : public RV32IInstruction {
     GETTER(Rs2, r_type, rs2);
     GETTER(Funct7, r_type, funct7);
 
-    void Dump() const override;
+    void DumpImpl(std::ostream &os) const override {
+        os << std::dec;
+        os << 'x' << GetRd() << ", x" << GetRs1() << ", x" << GetRs2() << std::endl;
+    }
 };
 
 struct RV32ITypeI : public RV32IInstruction {
@@ -197,7 +204,10 @@ struct RV32ITypeI : public RV32IInstruction {
         return out.raw_instr;
     }
 
-    void Dump() const override;
+    void DumpImpl(std::ostream &os) const override {
+        os << std::dec;
+        os << 'x' << GetRd() << ", x" << GetRs1() << ", " << static_cast<int32_t>(GetImm()) << std::endl;
+    }
 };
 
 struct RV32ITypeS : public RV32IInstruction {
@@ -224,7 +234,10 @@ struct RV32ITypeS : public RV32IInstruction {
         return out.raw_instr;
     }
 
-    void Dump() const override;
+    void DumpImpl(std::ostream &os) const override {
+        os << std::dec;
+        os << 'x' << GetRs1() << ", x" << GetRs2() << ", " << static_cast<int32_t>(GetImm()) << std::endl;
+    }
 };
 
 struct RV32ITypeB : public RV32IInstruction {
@@ -254,7 +267,10 @@ struct RV32ITypeB : public RV32IInstruction {
         return out.raw_instr;
     }
 
-    void Dump() const override;
+    void DumpImpl(std::ostream &os) const override {
+        os << std::dec;
+        os << 'x' << GetRs1() << ", x" << GetRs2() << ", " << static_cast<int32_t>(GetImm()) << std::endl;
+    }
 };
 
 struct RV32ITypeU : public RV32IInstruction {
@@ -265,7 +281,10 @@ struct RV32ITypeU : public RV32IInstruction {
         return instr.raw & (-(1u << 12));
     }
 
-    void Dump() const override;
+    void DumpImpl(std::ostream &os) const override {
+        os << std::dec;
+        os << 'x' << GetRd() << ", " << GetImm() << std::endl;
+    }
 };
 
 struct RV32ITypeJ : public RV32IInstruction {
@@ -293,7 +312,10 @@ struct RV32ITypeJ : public RV32IInstruction {
         return out.raw_instr;
     }
 
-    void Dump() const override;
+    void DumpImpl(std::ostream &os) const override {
+        os << std::dec;
+        os << 'x' << GetRd() << ", " << static_cast<int32_t>(GetImm()) << std::endl;
+    }
 };
 
 #undef GETTER

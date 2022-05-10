@@ -86,7 +86,7 @@ public:
     }
     const Elf32_Ehdr &ReadElfHeader();
     const std::vector<Elf32_Phdr> &ReadProgramHeaderTable();
-    uint32_t LoadElf32IntoMemory(memory::MMU<uint32_t, uint8_t, uint8_t> &mmu);
+    uint32_t LoadElf32IntoMemory(memory::MMU<uint32_t, uint8_t> &mmu);
 
 private:
     Elf32_Ehdr elf_header;

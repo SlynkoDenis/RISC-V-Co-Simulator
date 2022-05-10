@@ -14,7 +14,7 @@ namespace functional {
     case RV32I::name:           \
         return Handle##name(instr)
 
-class RV32IInterpreter : runtime::Runtime {
+class RV32IInterpreter : public runtime::Runtime {
 public:
     RV32IInterpreter() = default;
     DEFAULT_COPY_SEMANTIC(RV32IInterpreter);
@@ -32,7 +32,7 @@ protected:
         {
         default:
             // TODO: handle unknown instruction
-            ASSERT(false);
+            UNREACHABLE("invalid instruction");
             return false;
         HANLDER_CASE(LUI);
         HANLDER_CASE(AUIPC);

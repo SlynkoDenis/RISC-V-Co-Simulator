@@ -2,6 +2,7 @@
 #define HW_CO_SIMULATION_RUNTIME_H
 
 #include "macros.h"
+#include "trace_writer.h"
 
 
 namespace runtime {
@@ -41,6 +42,23 @@ public:
     virtual ~Runtime() noexcept = default;
 
     virtual ReturnCodes RunProgram(const char *path) = 0;
+
+    virtual bool EnableTraces(const std::array<const char*, trace::NumberOfTraceLevels> &paths) const {
+        auto &writer = trace::TraceWriter::GetWriter();
+        writer.TraceEnable();
+        bool success = true;
+        for (size_t i = 0; i < trace::NumberOfTraceLevels; ++i) {
+            success &= writer.OpenTraceFile(static_cast<trace::TraceLevel>(i), paths[i]);
+        }
+        writer.TraceIfEnabled(trace::TraceLevel::REG_FILE, std::hex);
+        writer.TraceIfEnabled(trace::TraceLevel::MMU, std::hex);
+        return success;
+    }
+    virtual void DisableTraces() const {
+        auto &writer = trace::TraceWriter::GetWriter();
+        writer.TraceDisable();
+        writer.CloseAll();
+    }
 };
 }   // end namespace runtime
 
