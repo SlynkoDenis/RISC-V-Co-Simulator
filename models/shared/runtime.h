@@ -6,7 +6,7 @@
 
 
 namespace runtime {
-static constexpr std::array<const char*, 8> return_codes_names{
+static constexpr std::array<const char*, 8> return_codes_names {
     "ERROR_NONE",
     "FILE_OPEN_ERROR",
     "ELF_LOAD_ERROR",
@@ -43,15 +43,17 @@ public:
 
     virtual ReturnCodes RunProgram(const char *path) = 0;
 
-    virtual bool EnableTraces(const std::array<const char*, trace::NumberOfTraceLevels> &paths) const {
+    virtual bool EnableTraces(const std::array<const char*, trace::NumberOfTraceLevels> &paths,
+                              const std::array<std::ios_base::openmode, trace::NumberOfTraceLevels> &modes) const {
         auto &writer = trace::TraceWriter::GetWriter();
         writer.TraceEnable();
         bool success = true;
         for (size_t i = 0; i < trace::NumberOfTraceLevels; ++i) {
-            success &= writer.OpenTraceFile(static_cast<trace::TraceLevel>(i), paths[i]);
+            success &= writer.OpenTraceFile(static_cast<trace::TraceLevel>(i), paths[i], modes[i]);
         }
         writer.TraceIfEnabled(trace::TraceLevel::REG_FILE, std::hex);
         writer.TraceIfEnabled(trace::TraceLevel::MMU, std::hex);
+        writer.TraceIfEnabled(trace::TraceLevel::DECODER, std::hex);
         return success;
     }
     virtual void DisableTraces() const {

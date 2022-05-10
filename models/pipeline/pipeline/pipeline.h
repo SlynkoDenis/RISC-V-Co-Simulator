@@ -169,6 +169,8 @@ public:
         return reg_file;
     }
 
+    void MakeTracesReadable(bool readable) { readable_traces_ = readable; }
+
 #ifdef DEBUG
 
     virtual uint32_t getDataWord(uint32_t addr) {
@@ -199,6 +201,12 @@ private:
 
     void HaltPipeline();
     void RestartPipeline();
+
+    // both method and variables are needed to write the correct execution trace
+    // TODO: trace methods can be implemented in a derived class
+    void TraceExecutedInstruction(uint32_t instr, uint32_t location);
+    uint32_t trace_prev_pc_ = 0;
+    bool readable_traces_ = false;
 
     size_t ticks_counter = 0;
     int last_instructions_counter = 0;

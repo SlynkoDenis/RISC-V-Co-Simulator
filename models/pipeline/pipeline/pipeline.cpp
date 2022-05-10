@@ -80,9 +80,7 @@ void PipelineModel::DoFetch() {
     std::cout << " (" << program_counter.GetCurrent() << ")\n";
 #endif
 
-    trace::TraceWriter::GetWriter().TraceIfEnabled(trace::TraceLevel::DECODER, std::hex,
-                                                   decode_register.next.instr, '(',
-                                                   program_counter.GetCurrent(), ")\n");
+    // TraceExecutedInstruction(exec_reg_cur.instr, exec_reg_cur.pc_de);
     // if (last_instructions_flag) {
     //     if (last_instructions_counter) {
     //         --last_instructions_counter;
@@ -106,7 +104,19 @@ void PipelineModel::DoDecode() {
     control_unit.funct3 = instruction::getFunct3(decode_stage_instr.instr);
     control_unit.funct7 = instruction::getFunct7(decode_stage_instr.instr);
     control_unit.rs2 = instruction::getRs2(decode_stage_instr.instr);
-    control_unit.Tick();
+
+    try {
+        control_unit.Tick();
+    } catch (EcallException &ec) {
+        TraceExecutedInstruction(decode_stage_instr.instr, decode_stage_instr.pc_de);
+        throw ec;
+    } catch (EbreakException &eb) {
+        TraceExecutedInstruction(decode_stage_instr.instr, decode_stage_instr.pc_de);
+        throw eb;
+    } catch (...) {
+        throw;
+    }
+
     // update next register
     auto control_signals = control_unit.GetControlSignals();
     execute_register.next.alu_op = control_signals.alu_op;
@@ -176,6 +186,8 @@ void PipelineModel::DoExecute() {
         memory_register.next.alu_res = modules::Add<uint32_t>{}(exec_reg_cur.pc_de, 4);
     }
     decode_register.next.v_de = pc_r;
+
+    TraceExecutedInstruction(exec_reg_cur.instr, exec_reg_cur.pc_de);
 }
 
 
@@ -278,6 +290,7 @@ void PipelineModel::TickStateRegisters() {
 }
 
 runtime::ReturnCodes PipelineModel::Run() {
+    trace_prev_pc_ = 0;
     try {
         while (true) {
             // this workaround prevents loading from invalid memory region on first cycles
@@ -315,9 +328,23 @@ runtime::ReturnCodes PipelineModel::RunProgram(const char *path) {
     InitSP();
 
     auto ret_code = Run();
-    reg_file.PrintRegisters();
     mmu.FreeMemory();
     return ret_code;
+}
+
+
+void PipelineModel::TraceExecutedInstruction(uint32_t instr, uint32_t location) {
+    if (instr != 0 && location != trace_prev_pc_) {
+        if (readable_traces_) {
+            trace::TraceWriter::GetWriter().TraceIfEnabled(trace::TraceLevel::DECODER, std::hex,
+                                                           instr, '(',
+                                                           location, ")\n");
+        } else {
+            trace::TraceWriter::GetWriter().TraceIfEnabled(trace::TraceLevel::DECODER, std::hex,
+                                                           instr, location);
+        }
+    }
+    trace_prev_pc_ = location;
 }
 
 #ifdef DEBUG

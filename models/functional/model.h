@@ -22,7 +22,7 @@ class EBREAKException : public std::exception {
 
 class FunctionalModel : public RV32IInterpreter {
 public:
-    FunctionalModel(): RV32IInterpreter(), ticks_counter(0), pc(0), cur_instr(nullptr) {}
+    FunctionalModel(): RV32IInterpreter(), ticks_counter(0), pc(0), cur_instr(nullptr), readable_traces_(false) {}
     DEFAULT_COPY_SEMANTIC(FunctionalModel);
     DEFAULT_MOVE_SEMANTIC(FunctionalModel);
     ~FunctionalModel() noexcept override = default;
@@ -46,6 +46,8 @@ public:
     const RV32IRegFile &GetRegFile() const {
         return registers;
     }
+
+    void MakeTracesReadable(bool readable) { readable_traces_ = readable; }
 
     static constexpr uint8_t SPReg = 2;
 
@@ -97,11 +99,14 @@ private:
         return mmu.GetWord(pc);
     }
 
+    void TraceExecutedInstruction(uint32_t instr, uint32_t location);
+
     size_t ticks_counter;
     memory::MMUFixedOffset mmu;
     RV32IRegFile registers;
     uint32_t pc;
     std::unique_ptr<RV32IInstruction> cur_instr;
+    bool readable_traces_;
 };
 }   // end namespace functional
 

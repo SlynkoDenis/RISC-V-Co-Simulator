@@ -9,35 +9,35 @@ int main(int argc, char **argv) {
     if (argc == 2) {
         path = argv[1];
     } else {
-        WARNING("taking default example (nested_loops.out)");
+        std::cerr << "taking default example (nested_loops)" << std::endl;
     }
 
-    pipeline::PipelineModel model;
+    cosimulator::RV32ICoSimulator cosim;
+    cosim.ShouldKeepTraces();
+    auto ret_code = cosim.TestProgram(path.data());
+    std::cout << "Co-Simulation result: " << ret_code << ' ' << cosimulator::CodeStringRepresentation(ret_code) << std::endl;
 
-    if (!utils::CreateDirectoryIfNotExists("traces")) {
-        WARNING("failed to create trace directory");
-        return -1;
-    }
-    std::array<const char*, 3> trace_files = {"traces/mmu.ptr", "traces/regfile.ptr", "traces/decoder.ptr"};
-    for (const auto &name : trace_files) {
-        if (!utils::CreateFileIfNotExists(name)) {
-            WARNING("failed to create " + std::string(name));
-            return -1;
-        }
-    }
-    if (!model.EnableTraces(trace_files)) {
-        WARNING("failed to create trace files");
-        return -1;
-    }
+    // pipeline::PipelineModel model;
 
-    auto ret_code = model.RunProgram(path.data());
-    std::cout << "Return code: " << static_cast<int>(ret_code) << ret_code << std::endl;
+    // if (!utils::CreateDirectoryIfNotExists("traces")) {
+    //     WARNING("failed to create trace directory");
+    //     return -1;
+    // }
+    // std::array<const char*, 3> trace_files = {"traces/mmu.ptr", "traces/regfile.ptr", "traces/decoder.ptr"};
+    // for (const auto &name : trace_files) {
+    //     if (!utils::CreateFileIfNotExists(name)) {
+    //         WARNING("failed to create " + std::string(name));
+    //         return -1;
+    //     }
+    // }
+    // if (!model.EnableTraces(trace_files)) {
+    //     WARNING("failed to create trace files");
+    //     return -1;
+    // }
 
-
-
-    // cosimulator::RV32ICoSimulator cosim;
-    // std::cout << cosim.TestProgram(path.data());
-
+    // auto ret_code = model.RunProgram(path.data());
+    // model.GetRegFile().PrintRegisters();
+    // std::cout << "Return code: " << static_cast<int>(ret_code) << ret_code << std::endl;
 
 
     // auto model = functional::FunctionalModel();
@@ -59,6 +59,7 @@ int main(int argc, char **argv) {
     //     return -1;
     // }
     // auto ret_code = model.RunProgram(path.data());
+    // model.DumpState();
     // std::cout << "Return code: " << static_cast<int>(ret_code) << ret_code << std::endl;
 
     return 0;

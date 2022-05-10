@@ -45,6 +45,7 @@ public:
             trace_os.close();
         }
     }
+
     void CloseAll() noexcept {
         for (auto &trace_os : trace_streams_) {
             if (trace_os.is_open()) {
@@ -52,10 +53,11 @@ public:
             }
         }
     }
-    bool OpenTraceFile(TraceLevel level, const char *path) {
+
+    bool OpenTraceFile(TraceLevel level, const char *path, std::ios_base::openmode mode) {
         CloseIfOpen(level);
         auto &trace_os = trace_streams_[static_cast<size_t>(level)];
-        trace_os.open(path, std::ofstream::app);
+        trace_os.open(path, mode);
         return !trace_os.fail();
     }
 

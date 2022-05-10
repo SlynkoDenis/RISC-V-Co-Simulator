@@ -10,6 +10,17 @@ void FunctionalModel::DumpState() const {
     std::cout << "============================================================\n";
 }
 
+void FunctionalModel::TraceExecutedInstruction(uint32_t instr, uint32_t location) {
+    if (readable_traces_) {
+        trace::TraceWriter::GetWriter().TraceIfEnabled(trace::TraceLevel::DECODER,
+                                                       instr, '(',
+                                                       location, ")\n");
+    } else {
+        trace::TraceWriter::GetWriter().TraceIfEnabled(trace::TraceLevel::DECODER,
+                                                       instr,
+                                                       location);
+    }
+}
 
 runtime::ReturnCodes FunctionalModel::Run() {
     try {
@@ -17,46 +28,36 @@ runtime::ReturnCodes FunctionalModel::Run() {
             ++ticks_counter;
 
             // TODO: make debugger mode
-#if 0
-            std::cout << "Executing instruction #" << std::dec << ticks_counter << " (pc " << std::hex << pc << ")\n";
-            char c = 0;
-            while (c != 'c') {
-                std::cin >> c;
-                if (c == 'p') {
-                    DEBUG_OBJ_DUMP(registers);
-                }
-                if (c == 'k') {
-                    std::exit(0);
-                }
-            }
-#endif
+            // std::cout << "Executing instruction #" << std::dec << ticks_counter << " (pc " << std::hex << pc << ")\n";
+            // char c = 0;
+            // while (c != 'c') {
+            //     std::cin >> c;
+            //     if (c == 'p') {
+            //         DEBUG_OBJ_DUMP(registers);
+            //     }
+            //     if (c == 'k') {
+            //         std::exit(0);
+            //     }
+            // }
 
             auto raw_instr = LoadFromPC();
             auto decoded_instr = Decode(raw_instr);
             cur_instr.reset(decoded_instr.instr);
 
-            // TODO: make smarter dump
+            // TODO: refactor dump to make instructions appear according to the convention
             DEBUG_OBJ_DUMP(decoded_instr);
-            // TODO: isn't this trace better for comparison?
-            {
-                std::ofstream ofs("trace_f.txt", std::ofstream::app);
-                ofs << std::hex << decoded_instr.instr->instr.raw << '(' << pc << ')' << std::endl;
-            }
-            trace::TraceWriter::GetWriter().TraceObjIfEnabled(trace::TraceLevel::DECODER,
-                                                              decoded_instr);
+
+            TraceExecutedInstruction(decoded_instr.instr->instr.raw, pc);
 
             if (Handle(*cur_instr, decoded_instr.name)) {
                 pc += 4;
             }
         }
     } catch (memory::AccessViolationException const&) {
-        DumpState();
         return runtime::SEGFAULT_ERROR;
     } catch (ECALLException const&) {
-        DumpState();
         return runtime::ECALL;
     } catch (EBREAKException const&) {
-        DumpState();
         return runtime::EBREAK;
     }
     //  catch (...) {
@@ -64,10 +65,8 @@ runtime::ReturnCodes FunctionalModel::Run() {
     //     throw;
     // }
     // TODO: uncomment, print dump (and stacktrace?) and terminate
-    DumpState();
     return runtime::ERROR_NONE;
 }
-
 
 runtime::ReturnCodes FunctionalModel::RunProgram(const char *path) {
     ticks_counter = 0;
@@ -88,7 +87,6 @@ runtime::ReturnCodes FunctionalModel::RunProgram(const char *path) {
     mmu.FreeMemory();
     return ret_code;
 }
-
 
 bool FunctionalModel::HandleLUI(RV32IInstruction &instr) {
     auto u_instr = dynamic_cast<RV32ITypeU&>(instr);
