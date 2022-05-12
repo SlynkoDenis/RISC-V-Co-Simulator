@@ -1,5 +1,4 @@
 set(SOURCES
-    decoder.cpp
     model.cpp
     )
 

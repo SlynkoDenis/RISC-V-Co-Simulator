@@ -8,21 +8,19 @@
 
 #ifdef DEBUG
 
-#define ASSERT_FAIL(expr) utils::AssertionFail(expr, __FILE__, __LINE__, __FUNCTION__)
+#define ASSERT_FAIL(expr) utils::AssertionFail((expr), __FILE__, __LINE__, __FUNCTION__)
 #define ASSERT(expr)            \
     if (UNLIKELY(!(expr))) {    \
         ASSERT_FAIL(#expr);     \
     }
 
 #define DEBUG_OBJ_DUMP(obj) obj.Dump()
-#define DEBUG_POINTER_DUMP(obj) obj->Dump()
 
 #else
 
 #define ASSERT(expr) static_cast<void>(0)
 
 #define DEBUG_OBJ_DUMP(obj) static_cast<void>(0)
-#define DEBUG_POINTER_DUMP(obj) static_cast<void>(0)
 
 #endif
 

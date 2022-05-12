@@ -318,6 +318,11 @@ struct RV32ITypeJ : public RV32IInstruction {
     }
 };
 
+inline void DumpNamedInstruction(RV32I name, RV32IInstruction &instr) {
+    std::cout << name << ' ';
+    instr.DumpImpl(std::cout);
+}
+
 #undef GETTER
 }   // end namespace functional
 
