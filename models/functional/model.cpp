@@ -10,18 +10,6 @@ void FunctionalModel::DumpState() const {
     std::cout << "============================================================\n";
 }
 
-void FunctionalModel::TraceExecutedInstruction(uint32_t instr, uint32_t location) {
-    if (readable_traces_) {
-        trace::TraceWriter::GetWriter().TraceIfEnabled(trace::TraceLevel::DECODER,
-                                                       instr, '(',
-                                                       location, ")\n");
-    } else {
-        trace::TraceWriter::GetWriter().TraceIfEnabled(trace::TraceLevel::DECODER,
-                                                       instr,
-                                                       location);
-    }
-}
-
 runtime::ReturnCodes FunctionalModel::Run() {
     try {
         while (true) {
@@ -47,7 +35,10 @@ runtime::ReturnCodes FunctionalModel::Run() {
             // TODO: refactor dump to make instructions appear according to the convention
             DEBUG_OBJ_DUMP(decoded_instr);
 
-            TraceExecutedInstruction(decoded_instr.instr->instr.raw, pc);
+
+            trace::TraceWriter::GetWriter().TraceExecutedInstruction(readable_traces_,
+                                                                     decoded_instr.instr->instr.raw,
+                                                                     pc);
 
             if (Handle(*cur_instr, decoded_instr.name)) {
                 pc += 4;

@@ -14,7 +14,6 @@ bool CreateDirectoryIfNotExists(const char *path);
 
 bool RemoveDirectory(const char *path);
 
-
 bool FileExists(const char *path);
 
 bool CreateFile(const char *path);
@@ -24,6 +23,8 @@ bool CreateFileIfNotExists(const char *path);
 bool RemoveFile(const char *path);
 
 bool CreateNewFile(const char *path);
+
+int CompareTwoFiles(const char *path1, const char *path2);
 }   // end namespace utils
 
 #endif // HW_CO_SIMULATION_DIRECTORY_H

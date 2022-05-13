@@ -17,6 +17,27 @@ bool RangeEqual(InputIterator1 first1, InputIterator1 last1,
     }
     return (first1 == last1) && (first2 == last2);
 }
+
+[[maybe_unused]] int CompareTwoFiles(const char *path1, const char *path2, int error_code) {
+    std::basic_ifstream<char32_t> funct_ifs(path1, std::ifstream::binary);
+    if (!funct_ifs.is_open()) {
+        WARNING("failed to open trace file " + std::string(path1));
+        return error_code;
+    }
+    std::basic_ifstream<char32_t> pipe_ifs(path2, std::ifstream::binary);
+    if (!pipe_ifs.is_open()) {
+        WARNING("failed to open trace file " + std::string(path2));
+        return error_code;
+    }
+
+    std::istreambuf_iterator<char32_t> funct_begin(funct_ifs);
+    std::istreambuf_iterator<char32_t> pipe_begin(pipe_ifs);
+    std::istreambuf_iterator<char32_t> end;
+    if (!RangeEqual(funct_begin, end, pipe_begin, end)) {
+        return error_code;
+    }
+    return 0;
+}
 }   // end anonymous namespace
 
 namespace cosimulator {
@@ -57,65 +78,26 @@ int RV32ICoSimulator::RunTest(const char *path) {
 }
 
 int RV32ICoSimulator::CompareTraces() const {
-    // TODO: add other checks?
     return CompareRegFileTraces() | CompareMMUTraces() | CompareExecutionPathTraces();
 }
 
 int RV32ICoSimulator::CompareRegFileTraces() const {
-    auto error_code = static_cast<int>(RV32ICoSimResult::REGFILE_MISMATCH);
-
-    std::ifstream funct_regfile(FunctionalTraces[1]);
-    if (!funct_regfile.is_open()) {
-        WARNING("failed to open trace file " + std::string(FunctionalTraces[1]));
-        return error_code;
+    if (utils::CompareTwoFiles(FunctionalTraces[1], PipelineTraces[1])) {
+        return static_cast<int>(RV32ICoSimResult::REGFILE_MISMATCH);
     }
-    std::ifstream pipe_regfile(PipelineTraces[1]);
-    if (!pipe_regfile.is_open()) {
-        WARNING("failed to open trace file " + std::string(PipelineTraces[1]));
-        return error_code;
-    }
-
-    // TBD
     return 0;
 }
 
 int RV32ICoSimulator::CompareMMUTraces() const {
-    auto error_code = static_cast<int>(RV32ICoSimResult::MMU_MISMATCH);
-
-    std::ifstream funct_regfile(FunctionalTraces[0]);
-    if (!funct_regfile.is_open()) {
-        WARNING("failed to open trace file " + std::string(FunctionalTraces[0]));
-        return error_code;
+    if (utils::CompareTwoFiles(FunctionalTraces[0], PipelineTraces[0])) {
+        return static_cast<int>(RV32ICoSimResult::MMU_MISMATCH);
     }
-    std::ifstream pipe_regfile(PipelineTraces[0]);
-    if (!pipe_regfile.is_open()) {
-        WARNING("failed to open trace file " + std::string(PipelineTraces[0]));
-        return error_code;
-    }
-
-    // TBD
     return 0;
 }
 
 int RV32ICoSimulator::CompareExecutionPathTraces() const {
-    auto error_code = static_cast<int>(RV32ICoSimResult::EXEC_PATH_MISMATCH);
-
-    std::basic_ifstream<char32_t> funct_ifs(FunctionalTraces[2], std::ifstream::binary);
-    if (!funct_ifs.is_open()) {
-        WARNING("failed to open trace file " + std::string(FunctionalTraces[2]));
-        return error_code;
-    }
-    std::basic_ifstream<char32_t> pipe_ifs(PipelineTraces[2], std::ifstream::binary);
-    if (!pipe_ifs.is_open()) {
-        WARNING("failed to open trace file " + std::string(PipelineTraces[2]));
-        return error_code;
-    }
-
-    std::istreambuf_iterator<char32_t> funct_begin(funct_ifs);
-    std::istreambuf_iterator<char32_t> pipe_begin(pipe_ifs);
-    std::istreambuf_iterator<char32_t> end;
-    if (!RangeEqual(funct_begin, end, pipe_begin, end)) {
-        return error_code;
+    if (utils::CompareTwoFiles(FunctionalTraces[2], PipelineTraces[2])) {
+        return static_cast<int>(RV32ICoSimResult::EXEC_PATH_MISMATCH);
     }
     return 0;
 }

@@ -16,14 +16,16 @@ public:
 
     void WriteReg(uint32_t value, size_t idx) {
         if (idx != 0) {
-            trace::TraceWriter::GetWriter().TraceIfEnabled(trace::TraceLevel::REG_FILE,
-                                                           set_string_, idx, ' ', value, '\n');
+            trace::TraceWriter::GetWriter().TraceSetRegFile(readable_traces_, "set ", 1,
+                                                            idx, value);
         }
 
         regs_.at(idx) = value;
         regs_.at(0) = 0;
     }
     uint32_t ReadReg(size_t idx) const { return regs_.at(idx); }
+
+    void MakeTracesReadable(bool readable) { readable_traces_ = readable; }
 
     void Dump() const {
         std::cout << "RegFile:\n";
@@ -36,8 +38,7 @@ public:
 
 private:
     std::array<uint32_t, number_of_registers> regs_{0};
-
-    static constexpr const char *set_string_ = "set ";
+    bool readable_traces_ = false;
 };
 }   // end namespace functional
 

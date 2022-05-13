@@ -20,7 +20,7 @@ public:
 
 class MMUFixedOffset : public MMU<uint32_t, uint8_t> {
 public:
-    MMUFixedOffset(): MMU() {
+    MMUFixedOffset(): MMU(), readable_traces_(false) {
         memory_ = reinterpret_cast<uint8_t*>(mmap(NULL, Size, PROT_NONE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0));
         if (memory_ == MAP_FAILED) {
             WARNING("memory_ == MAP_FAILED");
@@ -40,53 +40,31 @@ public:
         }
     }
 
-    // TODO: memory address computations done by the hardware ignore overflow and instead wrap around
+    void MakeTracesReadable(bool readable) { readable_traces_ = readable; }
+
     uint32_t GetWord(uint32_t vaddr) const {
-        trace::TraceWriter::GetWriter().TraceIfEnabled(trace::TraceLevel::MMU,
-                                                       "getw ", vaddr, '\n');
-        return *reinterpret_cast<uint32_t*>(Translate(vaddr));
-    }
-    uint32_t &GetWord(uint32_t vaddr) {
-        trace::TraceWriter::GetWriter().TraceIfEnabled(trace::TraceLevel::MMU,
-                                                       "getw ", vaddr, '\n');
         return *reinterpret_cast<uint32_t*>(Translate(vaddr));
     }
     uint16_t GetHalf(uint32_t vaddr) const {
-        trace::TraceWriter::GetWriter().TraceIfEnabled(trace::TraceLevel::MMU,
-                                                       "geth ", vaddr, '\n');
-        return *reinterpret_cast<uint16_t*>(Translate(vaddr));
-    }
-    uint16_t &GetHalf(uint32_t vaddr) {
-        trace::TraceWriter::GetWriter().TraceIfEnabled(trace::TraceLevel::MMU,
-                                                       "geth ", vaddr, '\n');
         return *reinterpret_cast<uint16_t*>(Translate(vaddr));
     }
     uint8_t GetByte(uint32_t vaddr) const {
-        trace::TraceWriter::GetWriter().TraceIfEnabled(trace::TraceLevel::MMU,
-                                                       "getb ", vaddr, '\n');
-        return *(Translate(vaddr));
-    }
-    uint8_t &GetByte(uint32_t vaddr) {
-        trace::TraceWriter::GetWriter().TraceIfEnabled(trace::TraceLevel::MMU,
-                                                       "getb ", vaddr, '\n');
         return *(Translate(vaddr));
     }
 
     void SetWord(uint32_t value, uint32_t vaddr) {
-        trace::TraceWriter::GetWriter().TraceIfEnabled(trace::TraceLevel::MMU,
-                                                       "setw ", vaddr, ' ', value, '\n');
+        trace::TraceWriter::GetWriter().TraceSetMemory(readable_traces_, "setw ",
+                                                       2, vaddr, value);
         *reinterpret_cast<uint32_t*>(Translate(vaddr)) = value;
     }
     void SetHalf(uint16_t value, uint32_t vaddr) {
-        trace::TraceWriter::GetWriter().TraceIfEnabled(trace::TraceLevel::MMU,
-                                                       "seth ", vaddr, ' ',
-                                                       static_cast<uint32_t>(value), '\n');
+        trace::TraceWriter::GetWriter().TraceSetMemory(readable_traces_, "seth ",
+                                                       1, vaddr, value);
         *reinterpret_cast<uint16_t*>(Translate(vaddr)) = value;
     }
     void SetByte(uint8_t value, uint32_t vaddr) {
-        trace::TraceWriter::GetWriter().TraceIfEnabled(trace::TraceLevel::MMU,
-                                                       "setb ", vaddr, ' ',
-                                                       static_cast<uint32_t>(value), '\n');
+        trace::TraceWriter::GetWriter().TraceSetMemory(readable_traces_, "setb ",
+                                                       0, vaddr, value);
         *(Translate(vaddr)) = value;
     }
 
@@ -158,6 +136,7 @@ protected:
 private:
     uint8_t *memory_;
     std::vector<std::pair<void*, size_t>> allocated_chunks_;
+    bool readable_traces_;
 };
 }   // end namespace memory
 

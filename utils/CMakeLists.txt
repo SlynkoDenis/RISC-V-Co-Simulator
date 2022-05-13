@@ -6,6 +6,7 @@ add_library(utils STATIC ${SOURCES})
 
 target_sources(utils PUBLIC
         debug.h
+        file.h
         load_elf.h
         macros.h
         system.h

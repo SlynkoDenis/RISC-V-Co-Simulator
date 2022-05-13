@@ -79,6 +79,52 @@ public:
         }
     }
 
+    template <typename T>
+    void TraceBinaryIfEnabled(TraceLevel level, T value) {
+        if (TRACE(must_trace_)) {
+            auto &trace_os = trace_streams_[static_cast<size_t>(level)];
+            trace_os.write(reinterpret_cast<char*>(&value), sizeof(value));
+            trace_os.flush();
+        }
+    }
+
+    void TraceSetRegFile(bool readable, const char *cmd_str, uint8_t cmd_code,
+                         uint32_t vaddr, uint32_t value) {
+        if (readable) {
+            trace::TraceWriter::GetWriter().TraceIfEnabled(trace::TraceLevel::REG_FILE,
+                                                           cmd_str, vaddr, ' ', value, '\n');
+        } else {
+            trace::TraceWriter::GetWriter().TraceBinaryIfEnabled(trace::TraceLevel::REG_FILE, cmd_code);
+            trace::TraceWriter::GetWriter().TraceBinaryIfEnabled(trace::TraceLevel::REG_FILE, vaddr);
+            trace::TraceWriter::GetWriter().TraceBinaryIfEnabled(trace::TraceLevel::REG_FILE, value);
+        }
+    }
+
+    void TraceSetMemory(bool readable, const char *cmd_str, uint8_t cmd_code,
+                        uint32_t vaddr, uint32_t value) {
+        if (readable) {
+            trace::TraceWriter::GetWriter().TraceIfEnabled(trace::TraceLevel::MMU,
+                                                           cmd_str, vaddr, ' ', value, '\n');
+        } else {
+            trace::TraceWriter::GetWriter().TraceBinaryIfEnabled(trace::TraceLevel::MMU, cmd_code);
+            trace::TraceWriter::GetWriter().TraceBinaryIfEnabled(trace::TraceLevel::MMU, vaddr);
+            trace::TraceWriter::GetWriter().TraceBinaryIfEnabled(trace::TraceLevel::MMU, value);
+        }
+    }
+
+    void TraceExecutedInstruction(bool readable, uint32_t instr, uint32_t location) {
+        if (readable) {
+            trace::TraceWriter::GetWriter().TraceIfEnabled(trace::TraceLevel::DECODER, std::hex,
+                                                           "Instruction ", instr, " (pc ",
+                                                           location, ")\n");
+        } else {
+            trace::TraceWriter::GetWriter().TraceBinaryIfEnabled(trace::TraceLevel::DECODER,
+                                                                 instr);
+            trace::TraceWriter::GetWriter().TraceBinaryIfEnabled(trace::TraceLevel::DECODER,
+                                                                 location);
+        }
+    }
+
 private:
     TraceWriter(): must_trace_(false) {}
 

@@ -169,7 +169,11 @@ public:
         return reg_file;
     }
 
-    void MakeTracesReadable(bool readable) { readable_traces_ = readable; }
+    void MakeTracesReadable(bool readable) {
+        readable_traces_ = readable;
+        mmu.MakeTracesReadable(readable);
+        reg_file.MakeTracesReadable(readable);
+    }
 
 #ifdef DEBUG
 
@@ -195,6 +199,10 @@ private:
     virtual void DoExecute();
     virtual void DoMemory();
     virtual void DoWriteBack();
+
+    // after decoding ECALL/EBREAK instructions, pipeline may contain not-executed instruction
+    // on memory/writeback stages; must finish them
+    virtual void DoLastTicks();
 
     virtual void HazardUnitTick();
     void TickStateRegisters();

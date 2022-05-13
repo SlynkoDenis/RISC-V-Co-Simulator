@@ -47,7 +47,11 @@ public:
         return registers;
     }
 
-    void MakeTracesReadable(bool readable) { readable_traces_ = readable; }
+    void MakeTracesReadable(bool readable) {
+        readable_traces_ = readable;
+        mmu.MakeTracesReadable(readable);
+        registers.MakeTracesReadable(readable);
+    }
 
     static constexpr uint8_t SPReg = 2;
 
@@ -98,8 +102,6 @@ private:
         ASSERT(pc % 4 == 0);
         return mmu.GetWord(pc);
     }
-
-    void TraceExecutedInstruction(uint32_t instr, uint32_t location);
 
     size_t ticks_counter;
     memory::MMUFixedOffset mmu;

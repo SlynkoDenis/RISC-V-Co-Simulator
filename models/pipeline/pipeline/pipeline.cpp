@@ -27,31 +27,6 @@ void PipelineModel::Tick() {
 
 
 void PipelineModel::DoFetch() {
-    // TODO: last cycles must be considered; probably they are not executed till the end
-    // check if we are out of instructions section
-    // if (!last_instructions_flag && !(execute_register.next.jmp_cond || execute_register.next.brn_cond)) {
-    //     last_instructions_flag = true;
-    //     if (memory_register.GetCurrent().jmp_cond) {
-    //         // branch takes if the jump was executed
-    //         last_instructions_counter = 1;
-    //         program_counter.enable_flag = false;
-    //         decode_register.enable_flag = false;
-    //         execute_register.enable_flag = false;
-    //         memory_register.enable_flag = false;
-    //     } else if (!pc_r) {
-    //         // If we executed the last instruction, we must finish
-    //         // the execute, memory and write-back stages
-    //         last_instructions_counter = 3;
-    //         program_counter.enable_flag = false;
-    //         decode_register.enable_flag = false;
-    //         decode_register.clear();
-    //     } else {
-    //         // if the branch was taken to the out-of-instructions zone,
-    //         // the execution can be finished straightaway
-    //         throw std::logic_error("out_of_instr_section");
-    //     }
-    // }
-
     instr_mem_unit.address = program_counter.GetCurrent();
 
     auto summand1 = modules::Multiplexer2<uint32_t>{}(pc_r,
@@ -79,15 +54,6 @@ void PipelineModel::DoFetch() {
     std::cout << ">>> Fetched instruction " << std::hex << decode_register.next.instr;
     std::cout << " (" << program_counter.GetCurrent() << ")\n";
 #endif
-
-    // TraceExecutedInstruction(exec_reg_cur.instr, exec_reg_cur.pc_de);
-    // if (last_instructions_flag) {
-    //     if (last_instructions_counter) {
-    //         --last_instructions_counter;
-    //     } else {
-    //         throw std::logic_error("out_of_instr_section");
-    //     }
-    // }
 }
 
 
@@ -109,11 +75,14 @@ void PipelineModel::DoDecode() {
         control_unit.Tick();
     } catch (EcallException &ec) {
         TraceExecutedInstruction(decode_stage_instr.instr, decode_stage_instr.pc_de);
+        DoLastTicks();
         throw ec;
     } catch (EbreakException &eb) {
         TraceExecutedInstruction(decode_stage_instr.instr, decode_stage_instr.pc_de);
+        DoLastTicks();
         throw eb;
     } catch (...) {
+        DoLastTicks();
         throw;
     }
 
@@ -289,6 +258,28 @@ void PipelineModel::TickStateRegisters() {
     write_back_register.Tick();
 }
 
+void PipelineModel::DoLastTicks() {
+    memory_register.Tick();
+    write_back_register.Tick();
+    DoWriteBack();
+    DoMemory();
+    reg_file.SetNewSignals(0,
+                           0,
+                           write_back_register.GetCurrent().wb_a,
+                           write_back_register.GetCurrent().wb_we,
+                           write_back_register.GetCurrent().wb_d);
+    reg_file.Tick();
+
+
+    write_back_register.Tick();
+    reg_file.SetNewSignals(0,
+                           0,
+                           write_back_register.GetCurrent().wb_a,
+                           write_back_register.GetCurrent().wb_we,
+                           write_back_register.GetCurrent().wb_d);
+    reg_file.Tick();
+}
+
 runtime::ReturnCodes PipelineModel::Run() {
     trace_prev_pc_ = 0;
     try {
@@ -335,14 +326,9 @@ runtime::ReturnCodes PipelineModel::RunProgram(const char *path) {
 
 void PipelineModel::TraceExecutedInstruction(uint32_t instr, uint32_t location) {
     if (instr != 0 && location != trace_prev_pc_) {
-        if (readable_traces_) {
-            trace::TraceWriter::GetWriter().TraceIfEnabled(trace::TraceLevel::DECODER, std::hex,
-                                                           instr, '(',
-                                                           location, ")\n");
-        } else {
-            trace::TraceWriter::GetWriter().TraceIfEnabled(trace::TraceLevel::DECODER, std::hex,
-                                                           instr, location);
-        }
+        trace::TraceWriter::GetWriter().TraceExecutedInstruction(readable_traces_,
+                                                                 instr,
+                                                                 location);
     }
     trace_prev_pc_ = location;
 }

@@ -1,6 +1,8 @@
+#include <cstring>
 #include <dirent.h>
 #include <errno.h>
 #include <fcntl.h>
+#include "file.h"
 #include <fts.h>
 #include "macros.h"
 #include <sys/stat.h>
@@ -163,5 +165,43 @@ bool RemoveFile(const char *path) {
 
 bool CreateNewFile(const char *path) {
     return (!FileExists(path) || RemoveFile(path)) && CreateFile(path);
+}
+
+// reading large files in memory may occupy much space,
+// but this way is faster than implemented by getc;
+// this implementation also works for binary files
+int CompareTwoFiles(const char *path1, const char *path2) {
+    File file(open(path1, O_RDONLY));
+    if (!file.IsValid()) {
+        throw FileOpenException("failed to open " + std::string(path1));
+    }
+    auto sz = file.GetFileSize();
+    std::vector<char> pipe_mem(sz + 1, '\0');
+    if (read(file.GetFd(), pipe_mem.data(), sz) < 0) {
+        ReportError("failed to read file ", path1);
+
+    }
+    file.Close();
+
+    file = File(open(path2, O_RDONLY));
+    if (!file.IsValid()) {
+        throw FileOpenException("failed to open " + std::string(path2));
+    }
+    auto tmp_sz = file.GetFileSize();
+
+    if (sz > tmp_sz) {
+        return 1;
+    }
+    if (sz < tmp_sz) {
+        return -1;
+    }
+
+    std::vector<char> funct_mem(sz + 1, '\0');
+    if (read(file.GetFd(), funct_mem.data(), sz) < 0) {
+        ReportError("failed to read file ", path2);
+    }
+    file.Close();
+
+    return std::strcmp(pipe_mem.data(), funct_mem.data());
 }
 }   // end namespace utils

@@ -13,10 +13,10 @@ public:
 
     virtual void Tick() {
         if (write_enable3 && address3 != 0) {
-            trace::TraceWriter::GetWriter().TraceIfEnabled(trace::TraceLevel::REG_FILE,
-                                                           set_string_, static_cast<uint32_t>(address3),
-                                                           ' ', write_data3, '\n');
-            regs.at(address3) = write_data3;    // & (0u - static_cast<uint32_t>(address3 != 0));
+            trace::TraceWriter::GetWriter().TraceSetRegFile(readable_traces_, "set ", 1,
+                                                            static_cast<uint32_t>(address3),
+                                                            write_data3);
+            regs.at(address3) = write_data3;
         }
         read_data1 = regs.at(address1);
         read_data2 = regs.at(address2);
@@ -39,11 +39,13 @@ public:
     }
 
     void InitSP(uint32_t value) {
-        trace::TraceWriter::GetWriter().TraceIfEnabled(trace::TraceLevel::REG_FILE, std::hex,
-                                                       set_string_, static_cast<uint32_t>(SPReg),
-                                                       ' ', value, '\n');
+        trace::TraceWriter::GetWriter().TraceSetRegFile(readable_traces_, "set ", 1,
+                                                        static_cast<uint32_t>(SPReg),
+                                                        value);
         regs.at(SPReg) = value;
     }
+
+    void MakeTracesReadable(bool readable) { readable_traces_ = readable; }
 
     virtual void PrintRegisters() const {
         std::cout << "RegFile:\n";
@@ -78,8 +80,7 @@ private:
     std::array<uint32_t, number_of_regs> regs = {0};
     uint32_t read_data1 = 0;
     uint32_t read_data2 = 0;
-
-    static constexpr const char *set_string_ = "set ";
+    bool readable_traces_ = false;
 };
 }   // end namespace modules
 

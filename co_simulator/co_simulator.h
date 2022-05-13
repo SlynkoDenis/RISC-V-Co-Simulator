@@ -21,7 +21,6 @@ public:
     virtual void TeardownAfterTest() = 0;
     virtual int RunTest(const char *path) = 0;
     virtual int TestProgram(const char *path) {
-        // TODO: write enumerated return codes
         if (!SetupBeforeTest()) {
             return -1;
         }
@@ -73,7 +72,7 @@ public:
                                                                   "traces/regfile.pipe.tr",
                                                                   "traces/decoder.pipe.tr"};
     static constexpr std::array<std::ios_base::openmode, trace::NumberOfTraceLevels> TraceFilesModes = \
-        {std::ofstream::app, std::ofstream::app, std::ofstream::app | std::ofstream::binary};
+        {std::ofstream::app | std::ofstream::binary};
 
 private:
     template <typename Iterable>
