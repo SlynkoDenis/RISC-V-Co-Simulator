@@ -53,18 +53,24 @@ public:
     }
 
     void SetWord(uint32_t value, uint32_t vaddr) {
+#ifndef REMOVE_TRACES
         trace::TraceWriter::GetWriter().TraceSetMemory(readable_traces_, "setw ",
                                                        2, vaddr, value);
+#endif
         *reinterpret_cast<uint32_t*>(Translate(vaddr)) = value;
     }
     void SetHalf(uint16_t value, uint32_t vaddr) {
+#ifndef REMOVE_TRACES
         trace::TraceWriter::GetWriter().TraceSetMemory(readable_traces_, "seth ",
                                                        1, vaddr, value);
+#endif
         *reinterpret_cast<uint16_t*>(Translate(vaddr)) = value;
     }
     void SetByte(uint8_t value, uint32_t vaddr) {
+#ifndef REMOVE_TRACES
         trace::TraceWriter::GetWriter().TraceSetMemory(readable_traces_, "setb ",
                                                        0, vaddr, value);
+#endif
         *(Translate(vaddr)) = value;
     }
 

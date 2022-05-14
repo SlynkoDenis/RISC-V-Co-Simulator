@@ -45,8 +45,9 @@ set(CMAKE_CXX_FLAGS "-Wall -Wextra -Werror")
 set(CMAKE_CXX_FLAGS_DEBUG "-g")
 set(CMAKE_CXX_FLAGS_RELEASE "-O3")
 
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 
-add_executable(sim main.cpp)
+add_executable(cosim main.cpp)
 include_directories(models/shared)
 add_subdirectory(models/functional)
 include_directories(models/pipeline/modules)
@@ -55,17 +56,27 @@ add_subdirectory(co_simulator)
 add_subdirectory(utils)
 
 
+if(NOT REMOVE_TRACES)
+    set(REMOVE_TRACES False)
+endif()
+string(TOLOWER ${REMOVE_TRACES} LOWER_REMOVE_TRACES)
+if(${LOWER_REMOVE_TRACES} MATCHES "true")
+    add_definitions(-DREMOVE_TRACES)
+endif()
+
+
 if(NOT WITH_TESTS)
     set(WITH_TESTS False)
 endif()
 string(TOLOWER ${WITH_TESTS} LOWER_WITH_TESTS)
-if(${LOWER_WITH_TESTS} MATCHES "true" OR ${LOWER_BUILD_TYPE} MATCHES "debug")
+if(${LOWER_WITH_TESTS} MATCHES "true" OR
+        ${LOWER_BUILD_TYPE} MATCHES "debug" AND NOT ${LOWER_WITH_TESTS} MATCHES "false")
     add_git_submodule(third_party/googletest)
     add_subdirectory(tests)
 endif()
 
 
-target_link_libraries(sim PUBLIC
+target_link_libraries(cosim PUBLIC
         co_simulator
         functional
         pipeline

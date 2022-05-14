@@ -151,6 +151,8 @@ public:
     DEFAULT_MOVE_SEMANTIC(PipelineModel);
     ~PipelineModel() noexcept override {};
 
+    long long GetTicksCounter() { return ticks_counter; }
+
     virtual void SetPC(uint32_t pc) {
         program_counter.next = pc;
         program_counter.Tick();
@@ -176,16 +178,6 @@ public:
     }
 
 #ifdef DEBUG
-
-    virtual uint32_t getDataWord(uint32_t addr) {
-        uint32_t res = 0;
-        auto current_addr = data_mem_unit.address;
-        data_mem_unit.address = addr;
-        res = data_mem_unit.GetData();
-        data_mem_unit.address = current_addr;
-        return res;
-    }
-
     virtual void PrintRegisters() const {
         reg_file.PrintRegisters();
     }
@@ -212,11 +204,13 @@ private:
 
     // both method and variables are needed to write the correct execution trace
     // TODO: trace methods can be implemented in a derived class
+#ifndef REMOVE_TRACES
     void TraceExecutedInstruction(uint32_t instr, uint32_t location);
     uint32_t trace_prev_pc_ = 0;
+#endif
     bool readable_traces_ = false;
 
-    size_t ticks_counter = 0;
+    long long ticks_counter = 0;
     int last_instructions_counter = 0;
     bool last_instructions_flag = false;
 

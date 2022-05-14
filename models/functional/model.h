@@ -10,19 +10,14 @@
 
 
 namespace functional {
-class ECALLException : public std::exception {
-};
-
-class EBREAKException : public std::exception {
-};
-
-
 class FunctionalModel : public RV32IInterpreter {
 public:
     FunctionalModel(): RV32IInterpreter(), ticks_counter(0), pc(0), readable_traces_(false) {}
     DEFAULT_COPY_SEMANTIC(FunctionalModel);
     DEFAULT_MOVE_SEMANTIC(FunctionalModel);
     ~FunctionalModel() noexcept override = default;
+
+    long long GetTicksCounter() const { return ticks_counter; }
 
     void SetPC(uint32_t new_pc) {
         pc = new_pc;
@@ -60,7 +55,7 @@ private:
         return mmu.GetWord(pc);
     }
 
-    size_t ticks_counter;
+    long long ticks_counter;
     memory::MMUFixedOffset mmu;
     RV32IRegFile registers;
     uint32_t pc;

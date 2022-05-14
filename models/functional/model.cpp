@@ -11,18 +11,6 @@ void FunctionalModel::DumpState() const {
     std::cout << "============================================================\n";
 }
 
-void FunctionalModel::TraceExecutedInstruction(uint32_t instr, uint32_t location) {
-    if (readable_traces_) {
-        trace::TraceWriter::GetWriter().TraceIfEnabled(trace::TraceLevel::DECODER,
-                                                       instr, '(',
-                                                       location, ")\n");
-    } else {
-        trace::TraceWriter::GetWriter().TraceIfEnabled(trace::TraceLevel::DECODER,
-                                                       instr,
-                                                       location);
-    }
-}
-
 runtime::ReturnCodes FunctionalModel::RunProgram(const char *path) {
     ticks_counter = 0;
     uint32_t entrypoint = 0;
@@ -43,9 +31,15 @@ runtime::ReturnCodes FunctionalModel::RunProgram(const char *path) {
     return ret_code;
 }
 
+#ifdef DEBUG
+#define DUMP_INSTRUCTION(instr_name, typed_instr) DumpNamedInstruction(instr_name, typed_instr)
+#else
+#define DUMP_INSTRUCTION(instr_name, typed_instr) static_cast<void>(0)
+#endif
+
 // TODO: refactor dump to make instructions appear according to the convention
 #define DECODE_AND_GOTO(typed_instr)                        \
-    DumpNamedInstruction(instr_name, typed_instr);          \
+    DUMP_INSTRUCTION(instr_name, typed_instr);              \
     ++ticks_counter;                                        \
     untyped_instr.instr.raw = LoadFromPC();                 \
     goto DECODER
@@ -123,7 +117,9 @@ runtime::ReturnCodes FunctionalModel::Run() {
         // }
 
 DECODER:
-        TraceExecutedInstruction(untyped_instr.instr.raw, pc);
+#ifndef REMOVE_TRACES
+        trace::TraceWriter::GetWriter().TraceExecutedInstruction(readable_traces_, untyped_instr.instr.raw, pc);
+#endif
         SWITCH_DECODER(instr_name, untyped_instr, r_instr, i_instr, s_instr, b_instr, u_instr, j_instr);
         label = dispatch_table[static_cast<uint8_t>(instr_name)];
         goto *label;
@@ -400,13 +396,13 @@ HANDLE_FENCE: {
 }
 
 HANDLE_ECALL: {
-        DumpNamedInstruction(instr_name, i_instr);
-        throw ECALLException();
+        DUMP_INSTRUCTION(instr_name, i_instr);
+        return runtime::ECALL;
 }
 
 HANDLE_EBREAK: {
-        DumpNamedInstruction(instr_name, i_instr);
-        throw EBREAKException();
+        DUMP_INSTRUCTION(instr_name, i_instr);
+        return runtime::EBREAK;
 }
 
 HANDLE_UNKNOWN: {
@@ -415,10 +411,6 @@ HANDLE_UNKNOWN: {
 
     } catch (memory::AccessViolationException const&) {
         return runtime::SEGFAULT_ERROR;
-    } catch (ECALLException const&) {
-        return runtime::ECALL;
-    } catch (EBREAKException const&) {
-        return runtime::EBREAK;
     }
     //  catch (...) {
     //     DumpState();

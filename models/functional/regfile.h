@@ -15,13 +15,14 @@ public:
     ~RV32IRegFile() noexcept {};
 
     void WriteReg(uint32_t value, size_t idx) {
+#ifndef REMOVE_TRACES
         if (idx != 0) {
             trace::TraceWriter::GetWriter().TraceSetRegFile(readable_traces_, "set ", 1,
                                                             idx, value);
         }
+#endif
 
-        regs_.at(idx) = value;
-        regs_.at(0) = 0;
+        regs_.at(idx) = value & (0u - static_cast<uint32_t>(idx != 0));
     }
     uint32_t ReadReg(size_t idx) const { return regs_.at(idx); }
 
