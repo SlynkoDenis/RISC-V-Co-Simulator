@@ -4,6 +4,10 @@
 #include "pipeline.h"
 
 
+#ifdef REMOVE_TRACES
+#define TraceExecutedInstruction(instr, location)   static_cast<void>(0)
+#endif
+
 namespace pipeline {
 void PipelineModel::Tick() {
     DoWriteBack();
@@ -281,7 +285,9 @@ void PipelineModel::DoLastTicks() {
 }
 
 runtime::ReturnCodes PipelineModel::Run() {
+#ifndef REMOVE_TRACES
     trace_prev_pc_ = 0;
+#endif
     try {
         while (true) {
             // this workaround prevents loading from invalid memory region on first cycles
@@ -324,6 +330,7 @@ runtime::ReturnCodes PipelineModel::RunProgram(const char *path) {
 }
 
 
+#ifndef REMOVE_TRACES
 void PipelineModel::TraceExecutedInstruction(uint32_t instr, uint32_t location) {
     if (instr != 0 && location != trace_prev_pc_) {
         trace::TraceWriter::GetWriter().TraceExecutedInstruction(readable_traces_,
@@ -332,6 +339,7 @@ void PipelineModel::TraceExecutedInstruction(uint32_t instr, uint32_t location) 
     }
     trace_prev_pc_ = location;
 }
+#endif
 
 #ifdef DEBUG
 void PipelineModel::Debug() {

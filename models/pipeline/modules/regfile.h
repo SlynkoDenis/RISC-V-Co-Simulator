@@ -13,9 +13,11 @@ public:
 
     virtual void Tick() {
         if (write_enable3 && address3 != 0) {
+#ifndef REMOVE_TRACES
             trace::TraceWriter::GetWriter().TraceSetRegFile(readable_traces_, "set ", 1,
                                                             static_cast<uint32_t>(address3),
                                                             write_data3);
+#endif
             regs.at(address3) = write_data3;
         }
         read_data1 = regs.at(address1);
@@ -39,9 +41,11 @@ public:
     }
 
     void InitSP(uint32_t value) {
+#ifndef REMOVE_TRACES
         trace::TraceWriter::GetWriter().TraceSetRegFile(readable_traces_, "set ", 1,
                                                         static_cast<uint32_t>(SPReg),
                                                         value);
+#endif
         regs.at(SPReg) = value;
     }
 

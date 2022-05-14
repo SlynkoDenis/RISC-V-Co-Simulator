@@ -1,7 +1,4 @@
 #include "co_simulator/co_simulator.h"
-#include "utils/system.h"
-#include "utils/load_elf.h"
-#include "model.h"
 
 
 int main(int argc, char **argv) {

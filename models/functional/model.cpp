@@ -1,3 +1,4 @@
+#include "decoder.h"
 #include "load_elf.h"
 #include "model.h"
 #include "trace_writer.h"
@@ -8,55 +9,6 @@ void FunctionalModel::DumpState() const {
     std::cout << "===================== Dump Model State =====================\n";
     registers.Dump();
     std::cout << "============================================================\n";
-}
-
-runtime::ReturnCodes FunctionalModel::Run() {
-    try {
-        while (true) {
-            ++ticks_counter;
-
-            // TODO: make debugger mode
-            // std::cout << "Executing instruction #" << std::dec << ticks_counter << " (pc " << std::hex << pc << ")\n";
-            // char c = 0;
-            // while (c != 'c') {
-            //     std::cin >> c;
-            //     if (c == 'p') {
-            //         DEBUG_OBJ_DUMP(registers);
-            //     }
-            //     if (c == 'k') {
-            //         std::exit(0);
-            //     }
-            // }
-
-            auto raw_instr = LoadFromPC();
-            auto decoded_instr = Decode(raw_instr);
-            cur_instr.reset(decoded_instr.instr);
-
-            // TODO: refactor dump to make instructions appear according to the convention
-            DEBUG_OBJ_DUMP(decoded_instr);
-
-
-            trace::TraceWriter::GetWriter().TraceExecutedInstruction(readable_traces_,
-                                                                     decoded_instr.instr->instr.raw,
-                                                                     pc);
-
-            if (Handle(*cur_instr, decoded_instr.name)) {
-                pc += 4;
-            }
-        }
-    } catch (memory::AccessViolationException const&) {
-        return runtime::SEGFAULT_ERROR;
-    } catch (ECALLException const&) {
-        return runtime::ECALL;
-    } catch (EBREAKException const&) {
-        return runtime::EBREAK;
-    }
-    //  catch (...) {
-    //     DumpState();    
-    //     throw;
-    // }
-    // TODO: uncomment, print dump (and stacktrace?) and terminate
-    return runtime::ERROR_NONE;
 }
 
 runtime::ReturnCodes FunctionalModel::RunProgram(const char *path) {
@@ -79,293 +31,394 @@ runtime::ReturnCodes FunctionalModel::RunProgram(const char *path) {
     return ret_code;
 }
 
-bool FunctionalModel::HandleLUI(RV32IInstruction &instr) {
-    auto u_instr = dynamic_cast<RV32ITypeU&>(instr);
-    registers.WriteReg(u_instr.GetImm(), u_instr.GetRd());
-    return true;
+#ifdef DEBUG
+#define DUMP_INSTRUCTION(instr_name, typed_instr) DumpNamedInstruction(instr_name, typed_instr)
+#else
+#define DUMP_INSTRUCTION(instr_name, typed_instr) static_cast<void>(0)
+#endif
+
+// TODO: refactor dump to make instructions appear according to the convention
+#define DECODE_AND_GOTO(typed_instr)                        \
+    DUMP_INSTRUCTION(instr_name, typed_instr);              \
+    ++ticks_counter;                                        \
+    untyped_instr.instr.raw = LoadFromPC();                 \
+    goto DECODER
+
+runtime::ReturnCodes FunctionalModel::Run() {
+    static std::array<const void*, instructions_names.size()> dispatch_table {
+        &&HANDLE_LUI,
+        &&HANDLE_AUIPC,
+        &&HANDLE_JAL,
+        &&HANDLE_JALR,
+        &&HANDLE_BEQ,
+        &&HANDLE_BNE,
+        &&HANDLE_BLT,
+        &&HANDLE_BGE,
+        &&HANDLE_BLTU,
+        &&HANDLE_BGEU,
+        &&HANDLE_LB,
+        &&HANDLE_LH,
+        &&HANDLE_LW,
+        &&HANDLE_LBU,
+        &&HANDLE_LHU,
+        &&HANDLE_SB,
+        &&HANDLE_SH,
+        &&HANDLE_SW,
+        &&HANDLE_ADDI,
+        &&HANDLE_SLTI,
+        &&HANDLE_SLTIU,
+        &&HANDLE_XORI,
+        &&HANDLE_ORI,
+        &&HANDLE_ANDI,
+        &&HANDLE_SLLI,
+        &&HANDLE_SRLI,
+        &&HANDLE_SRAI,
+        &&HANDLE_ADD,
+        &&HANDLE_SUB,
+        &&HANDLE_SLL,
+        &&HANDLE_SLT,
+        &&HANDLE_SLTU,
+        &&HANDLE_XOR,
+        &&HANDLE_SRL,
+        &&HANDLE_SRA,
+        &&HANDLE_OR,
+        &&HANDLE_AND,
+        &&HANDLE_FENCE,
+        &&HANDLE_ECALL,
+        &&HANDLE_EBREAK,
+        &&HANDLE_UNKNOWN,
+    };
+
+    auto untyped_instr = RV32IInstruction{LoadFromPC()};
+    RV32I instr_name = RV32I::UNKNOWN;
+    RV32ITypeR r_instr{0};
+    RV32ITypeI i_instr{0};
+    RV32ITypeS s_instr{0};
+    RV32ITypeB b_instr{0};
+    RV32ITypeU u_instr{0};
+    RV32ITypeJ j_instr{0};
+
+    const void *label = 0;
+
+    ++ticks_counter;
+
+    try {
+        // TODO: make debugger mode
+        // std::cout << "Executing instruction #" << std::dec << ticks_counter << " (pc " << std::hex << pc << ")\n";
+        // char c = 0;
+        // while (c != 'c') {
+        //     std::cin >> c;
+        //     if (c == 'p') {
+        //         DEBUG_OBJ_DUMP(registers);
+        //     }
+        //     if (c == 'k') {
+        //         std::exit(0);
+        //     }
+        // }
+
+DECODER:
+#ifndef REMOVE_TRACES
+        trace::TraceWriter::GetWriter().TraceExecutedInstruction(readable_traces_, untyped_instr.instr.raw, pc);
+#endif
+        SWITCH_DECODER(instr_name, untyped_instr, r_instr, i_instr, s_instr, b_instr, u_instr, j_instr);
+        label = dispatch_table[static_cast<uint8_t>(instr_name)];
+        goto *label;
+
+HANDLE_LUI: {
+        registers.WriteReg(u_instr.GetImm(), u_instr.GetRd());
+        pc += 4;
+        DECODE_AND_GOTO(u_instr);
 }
 
-bool FunctionalModel::HandleAUIPC(RV32IInstruction &instr) {
-    auto u_instr = dynamic_cast<RV32ITypeU&>(instr);
-    // TODO: can control overflow here
-    registers.WriteReg(pc + u_instr.GetImm(), u_instr.GetRd());
-    return true;
+HANDLE_AUIPC: {
+        // TODO: can control overflow here
+        registers.WriteReg(pc + u_instr.GetImm(), u_instr.GetRd());
+        pc += 4;
+        DECODE_AND_GOTO(u_instr);
 }
 
-bool FunctionalModel::HandleJAL(RV32IInstruction &instr) {
-    auto j_instr = dynamic_cast<RV32ITypeJ&>(instr);
-    // TODO: can control overflow here
-    registers.WriteReg(pc + 4, j_instr.GetRd());
-    pc += j_instr.GetImm();
-    return false;
+HANDLE_JAL: {
+        // TODO: can control overflow here
+        registers.WriteReg(pc + 4, j_instr.GetRd());
+        pc += j_instr.GetImm();
+        DECODE_AND_GOTO(j_instr);
 }
 
-bool FunctionalModel::HandleJALR(RV32IInstruction &instr) {
-    auto &i_instr = dynamic_cast<RV32ITypeI&>(instr);
-    // TODO: raise machine exception if needed
-    registers.WriteReg(pc + 4, i_instr.GetRd());
-    pc = (static_cast<int32_t>(registers.ReadReg(i_instr.GetRs1())) + static_cast<int32_t>(i_instr.GetImm())) & (0u - 2u);
-    return false;
+HANDLE_JALR: {
+        // TODO: raise machine exception if needed
+        registers.WriteReg(pc + 4, i_instr.GetRd());
+        pc = (static_cast<int32_t>(registers.ReadReg(i_instr.GetRs1())) + static_cast<int32_t>(i_instr.GetImm())) & (0u - 2u);
+        DECODE_AND_GOTO(i_instr);
 }
 
-bool FunctionalModel::HandleBEQ(RV32IInstruction &instr) {
-    auto &b_instr = dynamic_cast<RV32ITypeB&>(instr);
-    bool changed_pc = registers.ReadReg(b_instr.GetRs1()) == registers.ReadReg(b_instr.GetRs2());
-    pc = changed_pc ? pc + b_instr.GetImm() : pc;
-    return !changed_pc;
+HANDLE_BEQ: {
+        pc = registers.ReadReg(b_instr.GetRs1()) == registers.ReadReg(b_instr.GetRs2()) ? pc + b_instr.GetImm() : pc + 4;
+        DECODE_AND_GOTO(b_instr);
 }
 
-bool FunctionalModel::HandleBNE(RV32IInstruction &instr) {
-    auto &b_instr = dynamic_cast<RV32ITypeB&>(instr);
-    bool changed_pc = registers.ReadReg(b_instr.GetRs1()) != registers.ReadReg(b_instr.GetRs2());
-    pc = changed_pc ? pc + b_instr.GetImm() : pc;
-    return !changed_pc;
+HANDLE_BNE: {
+        pc = registers.ReadReg(b_instr.GetRs1()) != registers.ReadReg(b_instr.GetRs2()) ? pc + b_instr.GetImm() : pc + 4;
+        DECODE_AND_GOTO(b_instr);
 }
 
-bool FunctionalModel::HandleBLT(RV32IInstruction &instr) {
-    auto &b_instr = dynamic_cast<RV32ITypeB&>(instr);
-    bool changed_pc = static_cast<int32_t>(registers.ReadReg(b_instr.GetRs1())) < static_cast<int32_t>(registers.ReadReg(b_instr.GetRs2()));
-    pc = changed_pc ? pc + b_instr.GetImm() : pc;
-    return !changed_pc;
+HANDLE_BLT: {
+        bool changed_pc = static_cast<int32_t>(registers.ReadReg(b_instr.GetRs1())) < static_cast<int32_t>(registers.ReadReg(b_instr.GetRs2()));
+        pc = changed_pc ? pc + b_instr.GetImm() : pc + 4;
+        DECODE_AND_GOTO(b_instr);
 }
 
-bool FunctionalModel::HandleBGE(RV32IInstruction &instr) {
-    auto &b_instr = dynamic_cast<RV32ITypeB&>(instr);
-    bool changed_pc = static_cast<int32_t>(registers.ReadReg(b_instr.GetRs1())) >= static_cast<int32_t>(registers.ReadReg(b_instr.GetRs2()));
-    pc = changed_pc ? pc + b_instr.GetImm() : pc;
-    return !changed_pc;
+HANDLE_BGE: {
+        bool changed_pc = static_cast<int32_t>(registers.ReadReg(b_instr.GetRs1())) >= static_cast<int32_t>(registers.ReadReg(b_instr.GetRs2()));
+        pc = changed_pc ? pc + b_instr.GetImm() : pc + 4;
+        DECODE_AND_GOTO(b_instr);
 }
 
-bool FunctionalModel::HandleBLTU(RV32IInstruction &instr) {
-    auto &b_instr = dynamic_cast<RV32ITypeB&>(instr);
-    bool changed_pc = registers.ReadReg(b_instr.GetRs1()) < registers.ReadReg(b_instr.GetRs2());
-    pc = changed_pc ? pc + b_instr.GetImm() : pc;
-    return !changed_pc;
+HANDLE_BLTU: {
+        bool changed_pc = registers.ReadReg(b_instr.GetRs1()) < registers.ReadReg(b_instr.GetRs2());
+        pc = changed_pc ? pc + b_instr.GetImm() : pc + 4;
+        DECODE_AND_GOTO(b_instr);
 }
 
-bool FunctionalModel::HandleBGEU(RV32IInstruction &instr) {
-    auto &b_instr = dynamic_cast<RV32ITypeB&>(instr);
-    bool changed_pc = registers.ReadReg(b_instr.GetRs1()) >= registers.ReadReg(b_instr.GetRs2());
-    pc = changed_pc ? pc + b_instr.GetImm() : pc;
-    return !changed_pc;
+HANDLE_BGEU: {
+        bool changed_pc = registers.ReadReg(b_instr.GetRs1()) >= registers.ReadReg(b_instr.GetRs2());
+        pc = changed_pc ? pc + b_instr.GetImm() : pc + 4;
+        DECODE_AND_GOTO(b_instr);
 }
 
-bool FunctionalModel::HandleLB(RV32IInstruction &instr) {
-    auto &i_instr = dynamic_cast<RV32ITypeI&>(instr);
-    auto addr = registers.ReadReg(i_instr.GetRs1()) + i_instr.GetImm();
-    registers.WriteReg(static_cast<int32_t>(mmu.GetByte(addr)), i_instr.GetRd());
-    return true;
+HANDLE_LB: {
+        auto addr = registers.ReadReg(i_instr.GetRs1()) + i_instr.GetImm();
+        registers.WriteReg(static_cast<int32_t>(mmu.GetByte(addr)), i_instr.GetRd());
+        pc += 4;
+        DECODE_AND_GOTO(i_instr);
 }
 
-bool FunctionalModel::HandleLH(RV32IInstruction &instr) {
-    auto &i_instr = dynamic_cast<RV32ITypeI&>(instr);
-    auto addr = registers.ReadReg(i_instr.GetRs1()) + i_instr.GetImm();
-    registers.WriteReg(static_cast<int32_t>(mmu.GetHalf(addr)), i_instr.GetRd());
-    return true;
+HANDLE_LH: {
+        auto addr = registers.ReadReg(i_instr.GetRs1()) + i_instr.GetImm();
+        registers.WriteReg(static_cast<int32_t>(mmu.GetHalf(addr)), i_instr.GetRd());
+        pc += 4;
+        DECODE_AND_GOTO(i_instr);
 }
 
-bool FunctionalModel::HandleLW(RV32IInstruction &instr) {
-    auto &i_instr = dynamic_cast<RV32ITypeI&>(instr);
-    auto addr = registers.ReadReg(i_instr.GetRs1()) + i_instr.GetImm();
-    registers.WriteReg(mmu.GetWord(addr), i_instr.GetRd());
-    return true;
+HANDLE_LW: {
+        auto addr = registers.ReadReg(i_instr.GetRs1()) + i_instr.GetImm();
+        registers.WriteReg(mmu.GetWord(addr), i_instr.GetRd());
+        pc += 4;
+        DECODE_AND_GOTO(i_instr);
 }
 
-bool FunctionalModel::HandleLBU(RV32IInstruction &instr) {
-    auto &i_instr = dynamic_cast<RV32ITypeI&>(instr);
-    auto addr = registers.ReadReg(i_instr.GetRs1()) + i_instr.GetImm();
-    registers.WriteReg(static_cast<uint32_t>(mmu.GetByte(addr)), i_instr.GetRd());
-    return true;
+HANDLE_LBU: {
+        auto addr = registers.ReadReg(i_instr.GetRs1()) + i_instr.GetImm();
+        registers.WriteReg(static_cast<uint32_t>(mmu.GetByte(addr)), i_instr.GetRd());
+        pc += 4;
+        DECODE_AND_GOTO(i_instr);
 }
 
-bool FunctionalModel::HandleLHU(RV32IInstruction &instr) {
-    auto &i_instr = dynamic_cast<RV32ITypeI&>(instr);
-    auto addr = registers.ReadReg(i_instr.GetRs1()) + i_instr.GetImm();
-    registers.WriteReg(static_cast<uint32_t>(mmu.GetHalf(addr)), i_instr.GetRd());
-    return true;
+HANDLE_LHU: {
+        auto addr = registers.ReadReg(i_instr.GetRs1()) + i_instr.GetImm();
+        registers.WriteReg(static_cast<uint32_t>(mmu.GetHalf(addr)), i_instr.GetRd());
+        pc += 4;
+        DECODE_AND_GOTO(i_instr);
 }
 
-bool FunctionalModel::HandleSB(RV32IInstruction &instr) {
-    auto &s_instr = dynamic_cast<RV32ITypeS&>(instr);
-    auto addr = registers.ReadReg(s_instr.GetRs1()) + s_instr.GetImm();
-    mmu.SetByte(static_cast<uint8_t>(registers.ReadReg(s_instr.GetRs2())), addr);
-    return true;
+HANDLE_SB: {
+        auto addr = registers.ReadReg(s_instr.GetRs1()) + s_instr.GetImm();
+        mmu.SetByte(static_cast<uint8_t>(registers.ReadReg(s_instr.GetRs2())), addr);
+        pc += 4;
+        DECODE_AND_GOTO(s_instr);
 }
 
-bool FunctionalModel::HandleSH(RV32IInstruction &instr) {
-    auto &s_instr = dynamic_cast<RV32ITypeS&>(instr);
-    auto addr = registers.ReadReg(s_instr.GetRs1()) + s_instr.GetImm();
-    mmu.SetByte(static_cast<uint16_t>(registers.ReadReg(s_instr.GetRs2())), addr);
-    return true;
+HANDLE_SH: {
+        auto addr = registers.ReadReg(s_instr.GetRs1()) + s_instr.GetImm();
+        mmu.SetByte(static_cast<uint16_t>(registers.ReadReg(s_instr.GetRs2())), addr);
+        pc += 4;
+        DECODE_AND_GOTO(s_instr);
 }
 
-bool FunctionalModel::HandleSW(RV32IInstruction &instr) {
-    auto &s_instr = dynamic_cast<RV32ITypeS&>(instr);
-    auto addr = registers.ReadReg(s_instr.GetRs1()) + s_instr.GetImm();
-    mmu.SetWord(registers.ReadReg(s_instr.GetRs2()), addr);
-    return true;
+HANDLE_SW: {
+        auto addr = registers.ReadReg(s_instr.GetRs1()) + s_instr.GetImm();
+        mmu.SetWord(registers.ReadReg(s_instr.GetRs2()), addr);
+        pc += 4;
+        DECODE_AND_GOTO(s_instr);
 }
 
-bool FunctionalModel::HandleADDI(RV32IInstruction &instr) {
-    auto &i_instr = dynamic_cast<RV32ITypeI&>(instr);
-    // TODO: raise machine exception if needed
-    uint32_t res = registers.ReadReg(i_instr.GetRs1()) + i_instr.GetImm();
-    registers.WriteReg(res, i_instr.GetRd());
-    return true;
+HANDLE_ADDI: {
+        // TODO: raise machine exception if needed
+        uint32_t res = registers.ReadReg(i_instr.GetRs1()) + i_instr.GetImm();
+        registers.WriteReg(res, i_instr.GetRd());
+        pc += 4;
+        DECODE_AND_GOTO(i_instr);
 }
 
-bool FunctionalModel::HandleSLTI(RV32IInstruction &instr) {
-    auto &i_instr = dynamic_cast<RV32ITypeI&>(instr);
-    uint32_t res = static_cast<int32_t>(registers.ReadReg(i_instr.GetRs1())) < static_cast<int32_t>(i_instr.GetImm());
-    registers.WriteReg(res, i_instr.GetRd());
-    return true;
+HANDLE_SLTI: {
+        uint32_t res = static_cast<int32_t>(registers.ReadReg(i_instr.GetRs1())) < static_cast<int32_t>(i_instr.GetImm());
+        registers.WriteReg(res, i_instr.GetRd());
+        pc += 4;
+        DECODE_AND_GOTO(i_instr);
 }
 
-bool FunctionalModel::HandleSLTIU(RV32IInstruction &instr) {
-    auto &i_instr = dynamic_cast<RV32ITypeI&>(instr);
-    uint32_t res = registers.ReadReg(i_instr.GetRs1()) < i_instr.GetImm();
-    registers.WriteReg(res, i_instr.GetRd());
-    return true;
+HANDLE_SLTIU: {
+        uint32_t res = registers.ReadReg(i_instr.GetRs1()) < i_instr.GetImm();
+        registers.WriteReg(res, i_instr.GetRd());
+        pc += 4;
+        DECODE_AND_GOTO(i_instr);
 }
 
-bool FunctionalModel::HandleXORI(RV32IInstruction &instr) {
-    auto &i_instr = dynamic_cast<RV32ITypeI&>(instr);
-    // TODO: raise machine exception if needed
-    uint32_t res = registers.ReadReg(i_instr.GetRs1()) ^ i_instr.GetImm();
-    registers.WriteReg(res, i_instr.GetRd());
-    return true;
+HANDLE_XORI: {
+        // TODO: raise machine exception if needed
+        uint32_t res = registers.ReadReg(i_instr.GetRs1()) ^ i_instr.GetImm();
+        registers.WriteReg(res, i_instr.GetRd());
+        pc += 4;
+        DECODE_AND_GOTO(i_instr);
 }
 
-bool FunctionalModel::HandleORI(RV32IInstruction &instr) {
-    auto &i_instr = dynamic_cast<RV32ITypeI&>(instr);
-    // TODO: raise machine exception if needed
-    uint32_t res = registers.ReadReg(i_instr.GetRs1()) | i_instr.GetImm();
-    registers.WriteReg(res, i_instr.GetRd());
-    return true;
+HANDLE_ORI: {
+        // TODO: raise machine exception if needed
+        uint32_t res = registers.ReadReg(i_instr.GetRs1()) | i_instr.GetImm();
+        registers.WriteReg(res, i_instr.GetRd());
+        pc += 4;
+        DECODE_AND_GOTO(i_instr);
 }
 
-bool FunctionalModel::HandleANDI(RV32IInstruction &instr) {
-    auto &i_instr = dynamic_cast<RV32ITypeI&>(instr);
-    // TODO: raise machine exception if needed
-    uint32_t res = registers.ReadReg(i_instr.GetRs1()) & i_instr.GetImm();
-    registers.WriteReg(res, i_instr.GetRd());
-    return true;
+HANDLE_ANDI: {
+        // TODO: raise machine exception if needed
+        uint32_t res = registers.ReadReg(i_instr.GetRs1()) & i_instr.GetImm();
+        registers.WriteReg(res, i_instr.GetRd());
+        pc += 4;
+        DECODE_AND_GOTO(i_instr);
 }
 
-bool FunctionalModel::HandleSLLI(RV32IInstruction &instr) {
-    auto &i_instr = dynamic_cast<RV32ITypeI&>(instr);
-    // TODO: raise machine exception if needed
-    uint32_t res = registers.ReadReg(i_instr.GetRs1()) << i_instr.GetImm();
-    registers.WriteReg(res, i_instr.GetRd());
-    return true;
+HANDLE_SLLI: {
+        // TODO: raise machine exception if needed
+        uint32_t res = registers.ReadReg(i_instr.GetRs1()) << i_instr.GetImm();
+        registers.WriteReg(res, i_instr.GetRd());
+        pc += 4;
+        DECODE_AND_GOTO(i_instr);
 }
 
-bool FunctionalModel::HandleSRLI(RV32IInstruction &instr) {
-    auto &i_instr = dynamic_cast<RV32ITypeI&>(instr);
-    // TODO: raise machine exception if needed
-    uint32_t res = registers.ReadReg(i_instr.GetRs1()) >> i_instr.GetImm();
-    registers.WriteReg(res, i_instr.GetRd());
-    return true;
+HANDLE_SRLI: {
+        // TODO: raise machine exception if needed
+        uint32_t res = registers.ReadReg(i_instr.GetRs1()) >> i_instr.GetImm();
+        registers.WriteReg(res, i_instr.GetRd());
+        pc += 4;
+        DECODE_AND_GOTO(i_instr);
 }
 
-bool FunctionalModel::HandleSRAI(RV32IInstruction &instr) {
-    auto &i_instr = dynamic_cast<RV32ITypeI&>(instr);
-    // TODO: raise machine exception if needed
-    auto res = static_cast<int32_t>(registers.ReadReg(i_instr.GetRs1())) >> i_instr.GetImm();
-    registers.WriteReg(static_cast<uint32_t>(res), i_instr.GetRd());
-    return true;
+HANDLE_SRAI: {
+        // TODO: raise machine exception if needed
+        auto res = static_cast<int32_t>(registers.ReadReg(i_instr.GetRs1())) >> i_instr.GetImm();
+        registers.WriteReg(static_cast<uint32_t>(res), i_instr.GetRd());
+        pc += 4;
+        DECODE_AND_GOTO(i_instr);
 }
 
-bool FunctionalModel::HandleADD(RV32IInstruction &instr) {
-    auto &r_instr = dynamic_cast<RV32ITypeR&>(instr);
-    // TODO: raise machine exception if needed
-    uint32_t res = registers.ReadReg(r_instr.GetRs1()) + registers.ReadReg(r_instr.GetRs2());
-    registers.WriteReg(res, r_instr.GetRd());
-    return true;
+HANDLE_ADD: {
+        // TODO: raise machine exception if needed
+        uint32_t res = registers.ReadReg(r_instr.GetRs1()) + registers.ReadReg(r_instr.GetRs2());
+        registers.WriteReg(res, r_instr.GetRd());
+        pc += 4;
+        DECODE_AND_GOTO(r_instr);
 }
 
-bool FunctionalModel::HandleSUB(RV32IInstruction &instr) {
-    auto &r_instr = dynamic_cast<RV32ITypeR&>(instr);
-    // TODO: raise machine exception if needed
-    uint32_t res = registers.ReadReg(r_instr.GetRs1()) - registers.ReadReg(r_instr.GetRs2());
-    registers.WriteReg(res, r_instr.GetRd());
-    return true;
+HANDLE_SUB: {
+        // TODO: raise machine exception if needed
+        uint32_t res = registers.ReadReg(r_instr.GetRs1()) - registers.ReadReg(r_instr.GetRs2());
+        registers.WriteReg(res, r_instr.GetRd());
+        pc += 4;
+        DECODE_AND_GOTO(r_instr);
 }
 
-bool FunctionalModel::HandleSLL(RV32IInstruction &instr) {
-    auto &r_instr = dynamic_cast<RV32ITypeR&>(instr);
-    // TODO: raise machine exception if needed
-    uint32_t res = registers.ReadReg(r_instr.GetRs1()) << registers.ReadReg(r_instr.GetRs2());
-    registers.WriteReg(res, r_instr.GetRd());
-    return true;
+HANDLE_SLL: {
+        // TODO: raise machine exception if needed
+        uint32_t res = registers.ReadReg(r_instr.GetRs1()) << registers.ReadReg(r_instr.GetRs2());
+        registers.WriteReg(res, r_instr.GetRd());
+        pc += 4;
+        DECODE_AND_GOTO(r_instr);
 }
 
-bool FunctionalModel::HandleSLT(RV32IInstruction &instr) {
-    auto &r_instr = dynamic_cast<RV32ITypeR&>(instr);
-    uint32_t res = static_cast<int32_t>(registers.ReadReg(r_instr.GetRs1())) < static_cast<int32_t>(registers.ReadReg(r_instr.GetRs2()));
-    registers.WriteReg(res, r_instr.GetRd());
-    return true;
+HANDLE_SLT: {
+        uint32_t res = static_cast<int32_t>(registers.ReadReg(r_instr.GetRs1())) < static_cast<int32_t>(registers.ReadReg(r_instr.GetRs2()));
+        registers.WriteReg(res, r_instr.GetRd());
+        pc += 4;
+        DECODE_AND_GOTO(r_instr);
 }
 
-bool FunctionalModel::HandleSLTU(RV32IInstruction &instr) {
-    auto &r_instr = dynamic_cast<RV32ITypeR&>(instr);
-    uint32_t res = registers.ReadReg(r_instr.GetRs1()) < registers.ReadReg(r_instr.GetRs2());
-    registers.WriteReg(res, r_instr.GetRd());
-    return true;
+HANDLE_SLTU: {
+        uint32_t res = registers.ReadReg(r_instr.GetRs1()) < registers.ReadReg(r_instr.GetRs2());
+        registers.WriteReg(res, r_instr.GetRd());
+        pc += 4;
+        DECODE_AND_GOTO(r_instr);
 }
 
-bool FunctionalModel::HandleXOR(RV32IInstruction &instr) {
-    auto &r_instr = dynamic_cast<RV32ITypeR&>(instr);
-    // TODO: raise machine exception if needed
-    uint32_t res = registers.ReadReg(r_instr.GetRs1()) ^ registers.ReadReg(r_instr.GetRs2());
-    registers.WriteReg(res, r_instr.GetRd());
-    return true;
+HANDLE_XOR: {
+        // TODO: raise machine exception if needed
+        uint32_t res = registers.ReadReg(r_instr.GetRs1()) ^ registers.ReadReg(r_instr.GetRs2());
+        registers.WriteReg(res, r_instr.GetRd());
+        pc += 4;
+        DECODE_AND_GOTO(r_instr);
 }
 
-bool FunctionalModel::HandleSRL(RV32IInstruction &instr) {
-    auto &r_instr = dynamic_cast<RV32ITypeR&>(instr);
-    // TODO: raise machine exception if needed
-    uint32_t res = registers.ReadReg(r_instr.GetRs1()) >> registers.ReadReg(r_instr.GetRs2());
-    registers.WriteReg(res, r_instr.GetRd());
-    return true;
+HANDLE_SRL: {
+        // TODO: raise machine exception if needed
+        uint32_t res = registers.ReadReg(r_instr.GetRs1()) >> registers.ReadReg(r_instr.GetRs2());
+        registers.WriteReg(res, r_instr.GetRd());
+        pc += 4;
+        DECODE_AND_GOTO(r_instr);
 }
 
-bool FunctionalModel::HandleSRA(RV32IInstruction &instr) {
-    auto &r_instr = dynamic_cast<RV32ITypeR&>(instr);
-    // TODO: raise machine exception if needed
-    auto res = static_cast<int32_t>(registers.ReadReg(r_instr.GetRs1())) >> registers.ReadReg(r_instr.GetRs2());
-    registers.WriteReg(static_cast<uint32_t>(res), r_instr.GetRd());
-    return true;
+HANDLE_SRA: {
+        // TODO: raise machine exception if needed
+        auto res = static_cast<int32_t>(registers.ReadReg(r_instr.GetRs1())) >> registers.ReadReg(r_instr.GetRs2());
+        registers.WriteReg(static_cast<uint32_t>(res), r_instr.GetRd());
+        pc += 4;
+        DECODE_AND_GOTO(r_instr);
 }
 
-bool FunctionalModel::HandleOR(RV32IInstruction &instr) {
-    auto &r_instr = dynamic_cast<RV32ITypeR&>(instr);
-    // TODO: raise machine exception if needed
-    uint32_t res = registers.ReadReg(r_instr.GetRs1()) | registers.ReadReg(r_instr.GetRs2());
-    registers.WriteReg(res, r_instr.GetRd());
-    return true;
+HANDLE_OR: {
+        // TODO: raise machine exception if needed
+        uint32_t res = registers.ReadReg(r_instr.GetRs1()) | registers.ReadReg(r_instr.GetRs2());
+        registers.WriteReg(res, r_instr.GetRd());
+        pc += 4;
+        DECODE_AND_GOTO(r_instr);
 }
 
-bool FunctionalModel::HandleAND(RV32IInstruction &instr) {
-    auto &r_instr = dynamic_cast<RV32ITypeR&>(instr);
-    // TODO: raise machine exception if needed
-    uint32_t res = registers.ReadReg(r_instr.GetRs1()) & registers.ReadReg(r_instr.GetRs2());
-    registers.WriteReg(res, r_instr.GetRd());
-    return true;
+HANDLE_AND: {
+        // TODO: raise machine exception if needed
+        uint32_t res = registers.ReadReg(r_instr.GetRs1()) & registers.ReadReg(r_instr.GetRs2());
+        registers.WriteReg(res, r_instr.GetRd());
+        pc += 4;
+        DECODE_AND_GOTO(r_instr);
 }
 
-bool FunctionalModel::HandleFENCE([[maybe_unused]] RV32IInstruction &instr) {
-    WARNING("executed FENCE instruction");
-    return true;
+HANDLE_FENCE: {
+        WARNING("executed FENCE instruction as NOP");
+        pc += 4;
+        DECODE_AND_GOTO(i_instr);
 }
 
-bool FunctionalModel::HandleECALL([[maybe_unused]] RV32IInstruction &instr) {
-    throw ECALLException();
-    return true;
+HANDLE_ECALL: {
+        DUMP_INSTRUCTION(instr_name, i_instr);
+        return runtime::ECALL;
 }
 
-bool FunctionalModel::HandleEBREAK([[maybe_unused]] RV32IInstruction &instr) {
-    throw EBREAKException();
-    return true;
+HANDLE_EBREAK: {
+        DUMP_INSTRUCTION(instr_name, i_instr);
+        return runtime::EBREAK;
 }
+
+HANDLE_UNKNOWN: {
+        UNREACHABLE("unknown instruction: " + std::to_string(untyped_instr.instr.raw));
+}
+
+    } catch (memory::AccessViolationException const&) {
+        return runtime::SEGFAULT_ERROR;
+    }
+    //  catch (...) {
+    //     DumpState();
+    //     throw;
+    // }
+    // TODO: uncomment, print dump (and stacktrace?) and terminate
+    return runtime::ERROR_NONE;
+}
+
+#undef DECODE_AND_GOTO
 }   // end namespace functional
