@@ -31,4 +31,18 @@ TEST_F(PipelineTest, NestedLoopsTest) {
     const auto &regfile = model.GetRegFile();
     ASSERT_EQ(regfile.GetRegDirectly(10), -11);
 }
+
+TEST_F(PipelineTest, QSortTest) {
+    auto model = PipelineModel();
+    model.RunProgram("../examples/qsort/qsort.out");
+    const auto &regfile = model.GetRegFile();
+    ASSERT_EQ(regfile.GetRegDirectly(10), 0);
+}
+
+TEST_F(PipelineTest, MatrixMultTest) {
+    auto model = PipelineModel();
+    model.RunProgram("../examples/matrix_mult/matrix_mult.out");
+    const auto &regfile = model.GetRegFile();
+    ASSERT_EQ(regfile.GetRegDirectly(10), 0);
+}
 }   // end namespace pipeline::tests

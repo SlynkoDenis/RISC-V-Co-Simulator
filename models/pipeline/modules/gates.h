@@ -3,6 +3,7 @@
 
 #include <exception>
 #include "common.h"
+#include "macros.h"
 
 
 namespace modules {
@@ -28,27 +29,24 @@ struct Or {
 };
 
 template <typename T>
-struct Multiplexer2 {
-    constexpr inline uint32_t operator()(bool control, T src1, T src2) const {
-        return control ? src2 : src1;
-    }
-};
+constexpr inline uint32_t Multiplexer2(bool control, T src1, T src2) {
+    return control ? src2 : src1;
+}
 
 template <typename T>
-struct Multiplexer3 {
-    constexpr inline uint32_t operator()(uint8_t control, T src1, T src2, T src3) const {
-        switch (control) {
-        default:
-            throw std::logic_error("invalid control signal: " + std::to_string(control));
-        case 0:
-            return src1;
-        case 1:
-            return src2;
-        case 2:
-            return src3;
-        }
+constexpr inline uint32_t Multiplexer3(uint8_t control, T src1, T src2, T src3) {
+    switch (control) {
+    default:
+        UNREACHABLE("invalid control signal: " + std::to_string(control));
+        return 0;
+    case 0:
+        return src1;
+    case 1:
+        return src2;
+    case 2:
+        return src3;
     }
-};
+}
 }   // end namespace modules
 
 #endif // HW_CO_SIMULATION_GATES_H

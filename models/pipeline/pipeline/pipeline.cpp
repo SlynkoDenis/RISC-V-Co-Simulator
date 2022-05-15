@@ -33,10 +33,10 @@ void PipelineModel::Tick() {
 void PipelineModel::DoFetch() {
     instr_mem_unit.address = program_counter.GetCurrent();
 
-    auto summand1 = modules::Multiplexer2<uint32_t>{}(pc_r,
-                                                      program_counter.GetCurrent(),
-                                                      execute_register.GetCurrent().pc_de);
-    auto summand2 = modules::Multiplexer2<uint32_t>{}(pc_r, 4, pc_disp);
+    auto summand1 = modules::Multiplexer2<uint32_t>(pc_r,
+                                                    program_counter.GetCurrent(),
+                                                    execute_register.GetCurrent().pc_de);
+    auto summand2 = modules::Multiplexer2<uint32_t>(pc_r, 4, pc_disp);
     if (execute_register.GetCurrent().is_jalr) {
         // in case of JALR the address was already computed
         // in circuit this branch equals to logical AND or multiplexer
@@ -91,25 +91,15 @@ void PipelineModel::DoDecode() {
     }
 
     // update next register
-    auto control_signals = control_unit.GetControlSignals();
-    execute_register.next.alu_op = control_signals.alu_op;
-    execute_register.next.alu_src2 = control_signals.alu_src2;
-    execute_register.next.is_jalr = control_signals.is_jalr;
-    execute_register.next.wb_we = control_signals.wb_we;
-    execute_register.next.mem_we = control_signals.mem_we;
-    execute_register.next.mem_to_reg = control_signals.mem_to_reg;
-    execute_register.next.brn_cond = control_signals.brn_cond;
-    execute_register.next.jmp_cond = control_signals.jmp_cond;
-    execute_register.next.cmp_control = control_signals.cmp_control;
-    execute_register.next.funct3 = control_unit.funct3;
+    control_unit.LoadControlSignals(execute_register.next);
     // check if the instruction is AUIPC
-    execute_register.next.data1 = modules::Multiplexer2<uint32_t>{}((control_unit.opcode == 0b0010111),
-                                                                    reg_file.GetReadData1(),
-                                                                    decode_stage_instr.pc_de);
+    execute_register.next.data1 = modules::Multiplexer2<uint32_t>((control_unit.opcode == 0b0010111),
+                                                                  reg_file.GetReadData1(),
+                                                                  decode_stage_instr.pc_de);
     // check if the instruction is LUI
-    execute_register.next.data1 = modules::Multiplexer2<uint32_t>{}((control_unit.opcode == 0b0110111),
-                                                                    execute_register.next.data1,
-                                                                    0);
+    execute_register.next.data1 = modules::Multiplexer2<uint32_t>((control_unit.opcode == 0b0110111),
+                                                                  execute_register.next.data1,
+                                                                  0);
     execute_register.next.data2 = reg_file.GetReadData2();
     execute_register.next.pc_de = decode_stage_instr.pc_de;
     execute_register.next.instr = decode_stage_instr.instr;
@@ -118,22 +108,26 @@ void PipelineModel::DoDecode() {
 
 
 void PipelineModel::DoExecute() {
+    auto current_wb_data = write_back_register.GetCurrent().wb_d;
     auto exec_reg_cur = execute_register.GetCurrent();
-    auto src_a = modules::Multiplexer3<uint32_t>{}(static_cast<uint8_t>(hu_rs1),
-                                                exec_reg_cur.data1,
+    auto modified_wb_rs1 = must_take_halted_wb == LoadConflictUsedWB::RS1 ? halted_wb : exec_reg_cur.data1;
+    auto modified_wb_rs2 = must_take_halted_wb == LoadConflictUsedWB::RS2 ? halted_wb : exec_reg_cur.data2;
+
+    auto src_a = modules::Multiplexer3<uint32_t>(static_cast<uint8_t>(hu_rs1),
+                                                 modified_wb_rs1,
+                                                 bp_mem,
+                                                 current_wb_data);
+    auto rs2v = modules::Multiplexer3<uint32_t>(static_cast<uint8_t>(hu_rs2),
+                                                modified_wb_rs2,
                                                 bp_mem,
-                                                write_back_register.GetCurrent().wb_d);
-    auto rs2v = modules::Multiplexer3<uint32_t>{}(static_cast<uint8_t>(hu_rs2),
-                                               exec_reg_cur.data2,
-                                               bp_mem,
-                                               write_back_register.GetCurrent().wb_d);
-    pc_disp = instruction::ImmediateExtensionBlock{}(exec_reg_cur.instr);
-    auto src_b = modules::Multiplexer2<uint32_t>{}(exec_reg_cur.alu_src2,
-                                                rs2v,
-                                                pc_disp);
-    bool cmp_res = modules::Cmp<uint32_t>{}(exec_reg_cur.cmp_control,
-                                         src_a,
-                                         rs2v);
+                                                current_wb_data);
+    pc_disp = instruction::ImmediateExtensionBlock(exec_reg_cur.instr);
+    auto src_b = modules::Multiplexer2<uint32_t>(exec_reg_cur.alu_src2,
+                                                 rs2v,
+                                                 pc_disp);
+    bool cmp_res = modules::Cmp<uint32_t, int32_t>(exec_reg_cur.cmp_control,
+                                                   src_a,
+                                                   rs2v);
     pc_r = modules::Or<bool>{}(exec_reg_cur.jmp_cond,
                                modules::And<bool>{}(cmp_res, exec_reg_cur.brn_cond));
     // update next registers
@@ -144,7 +138,7 @@ void PipelineModel::DoExecute() {
     memory_register.next.wb_we = exec_reg_cur.wb_we && (!exec_reg_cur.v_de);
     memory_register.next.jmp_cond = exec_reg_cur.jmp_cond;
     memory_register.next.write_data = rs2v;
-    memory_register.next.alu_res = modules::ALU{}(exec_reg_cur.alu_op, src_a, src_b);
+    memory_register.next.alu_res = modules::ALU(exec_reg_cur.alu_op, src_a, src_b);
 
     // writeback_address will be taken into account only if instruction writes in registers
     // (in out case, only if it's not store or branch)
@@ -160,7 +154,22 @@ void PipelineModel::DoExecute() {
     }
     decode_register.next.v_de = pc_r;
 
-    TraceExecutedInstruction(exec_reg_cur.instr, exec_reg_cur.pc_de);
+    if (execute_register.enable_flag) {
+        TraceExecutedInstruction(exec_reg_cur.instr, exec_reg_cur.pc_de);
+    }
+
+    if (!execute_register.enable_flag) {    // if pipeline is halted (happens on load conflict)
+        // WB won't fall into execute_register when halted - must save the value and use when continued
+        if (hu_rs1 == BypassOptionsEncoding::WB) {
+            must_take_halted_wb = LoadConflictUsedWB::RS1;
+            halted_wb = current_wb_data;
+        } else if (hu_rs2 == BypassOptionsEncoding::WB) {
+            must_take_halted_wb = LoadConflictUsedWB::RS2;
+            halted_wb = current_wb_data;
+        }
+    } else {
+        must_take_halted_wb = LoadConflictUsedWB::NONE;
+    }
 }
 
 
@@ -175,9 +184,9 @@ void PipelineModel::DoMemory() {
     }
     // update next register
     write_back_register.next.wb_we = mem_reg_cur.wb_we;
-    write_back_register.next.wb_d = modules::Multiplexer2<uint32_t>{}(mem_reg_cur.mem_to_reg,
-                                                                      mem_reg_cur.alu_res,
-                                                                      data_mem_unit.GetData());
+    write_back_register.next.wb_d = modules::Multiplexer2<uint32_t>(mem_reg_cur.mem_to_reg,
+                                                                    mem_reg_cur.alu_res,
+                                                                    data_mem_unit.GetData());
     write_back_register.next.wb_a = mem_reg_cur.wb_a;
     bp_mem = mem_reg_cur.alu_res;
 }
@@ -200,7 +209,9 @@ void PipelineModel::RestartPipeline() {
 
 
 void PipelineModel::HazardUnitTick() {
-    if (pc_r) {
+    // disabled execute register means halted pipeline (because of load confilct)
+    // in this case pc_r's value may be incorrect
+    if (execute_register.enable_flag && pc_r) {
         // jump or branch. Must clear invalid stages
         decode_register.clear();
         execute_register.clear();

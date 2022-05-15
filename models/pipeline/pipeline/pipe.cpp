@@ -11,6 +11,7 @@ int main(int argc, char **argv) {
 
     pipeline::PipelineModel model;
     auto ret_code = model.RunProgram(path.data());
+    model.PrintRegisters();
     std::cout << "Return Code: " << static_cast<int>(ret_code) << ' ' << ret_code << std::endl;
     std::cout << "Took cycles: " << model.GetTicksCounter() << std::endl;
 

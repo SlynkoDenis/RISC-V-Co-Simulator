@@ -59,8 +59,7 @@ public:
     int CompareMMUTraces() const;
     int CompareExecutionPathTraces() const;
 
-    void ShouldDeleteTraces() { should_delete_traces_ = true; }
-    void ShouldKeepTraces() { should_delete_traces_ = false; }
+    void ShouldDeleteTraces(bool should_delete) { should_delete_traces_ = should_delete; }
 
     void MakeTracesReadable(bool readable) { readable_traces_ = readable; }
 

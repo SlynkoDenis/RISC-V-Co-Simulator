@@ -31,4 +31,18 @@ TEST_F(FunctionalTest, NestedLoopsTest) {
     const auto &regfile = model.GetRegFile();
     ASSERT_EQ(regfile.ReadReg(10), -11);
 }
+
+TEST_F(FunctionalTest, QSortTest) {
+    auto model = FunctionalModel();
+    model.RunProgram("../examples/qsort/qsort.out");
+    const auto &regfile = model.GetRegFile();
+    ASSERT_EQ(regfile.ReadReg(10), 0);
+}
+
+TEST_F(FunctionalTest, MatrixMultTest) {
+    auto model = FunctionalModel();
+    model.RunProgram("../examples/matrix_mult/matrix_mult.out");
+    const auto &regfile = model.GetRegFile();
+    ASSERT_EQ(regfile.ReadReg(10), 0);
+}
 }   // end namespace pipeline::tests

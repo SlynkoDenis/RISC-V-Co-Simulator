@@ -10,7 +10,7 @@ int main(int argc, char **argv) {
     }
 
     cosimulator::RV32ICoSimulator cosim;
-    cosim.ShouldKeepTraces();
+    cosim.ShouldDeleteTraces(false);
     auto ret_code = cosim.TestProgram(path.data());
     std::cout << "Co-Simulation result: " << ret_code << ' ' << cosimulator::CodeStringRepresentation(ret_code) << std::endl;
 

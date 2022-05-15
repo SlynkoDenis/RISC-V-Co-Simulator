@@ -7,6 +7,7 @@
 #include "instr_exceptions.h"
 #include "instruction.h"
 #include "macros.h"
+#include "stages_states.h"
 
 
 namespace pipeline {
@@ -17,21 +18,17 @@ class ControlUnit {
 public:
     virtual ~ControlUnit() noexcept = default;
 
-    struct ControlSignals {
-        bool is_jalr;
-        bool wb_we;
-        bool mem_we;
-        bool mem_to_reg;
-        bool brn_cond;
-        bool jmp_cond;
-        bool alu_src2;
-        ALUControl alu_op;
-        modules::CmpControl cmp_control;
-    };
-
-    ControlSignals GetControlSignals() const {
-        return ControlSignals{is_jalr, wb_we, mem_we, mem_to_reg, brn_cond,
-                              jmp_cond, alu_src2, alu_op, cmp_control};
+    void LoadControlSignals(ExecuteState &next_state) const {
+        next_state.alu_op = alu_op;
+        next_state.alu_src2 = alu_src2;
+        next_state.is_jalr = is_jalr;
+        next_state.wb_we = wb_we;
+        next_state.mem_we = mem_we;
+        next_state.mem_to_reg = mem_to_reg;
+        next_state.brn_cond = brn_cond;
+        next_state.jmp_cond = jmp_cond;
+        next_state.cmp_control = cmp_control;
+        next_state.funct3 = funct3;
     }
 
     auto GetInstructionType() const {
@@ -65,6 +62,7 @@ public:
             wb_we = true;
         }
 
+        // if instruction is store
         mem_we = (opcode == 0b0100011);
 
         instr_type = instruction::GetInstructionType(opcode);

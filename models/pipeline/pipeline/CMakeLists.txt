@@ -10,6 +10,7 @@ target_sources(pipeline PUBLIC
         instr_exceptions.h
         instruction.h
         pipeline.h
+        stages_states.h
         )
 
 if(NOT REMOVE_TRACES)

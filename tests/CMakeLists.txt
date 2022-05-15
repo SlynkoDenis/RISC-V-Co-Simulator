@@ -6,4 +6,4 @@ add_executable(${BINARY} ${SOURCES})
 
 add_test(NAME ${BINARY} COMMAND ${BINARY})
 
-target_link_libraries(${BINARY} PUBLIC functional pipeline utils gtest)
+target_link_libraries(${BINARY} PUBLIC functional pipeline co_simulator utils gtest)
