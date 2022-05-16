@@ -104,17 +104,6 @@ runtime::ReturnCodes FunctionalModel::Run() {
 
     try {
         // TODO: make debugger mode
-        // std::cout << "Executing instruction #" << std::dec << ticks_counter << " (pc " << std::hex << pc << ")\n";
-        // char c = 0;
-        // while (c != 'c') {
-        //     std::cin >> c;
-        //     if (c == 'p') {
-        //         DEBUG_OBJ_DUMP(registers);
-        //     }
-        //     if (c == 'k') {
-        //         std::exit(0);
-        //     }
-        // }
 
 DECODER:
 #ifndef REMOVE_TRACES
